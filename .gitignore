@@ -1,4 +1,7 @@
 **build
 **dist
 *env
+*testlab
 **.egg-info
+*.tox
+**__pycache__

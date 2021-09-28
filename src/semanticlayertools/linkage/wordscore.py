@@ -3,7 +3,6 @@ import re
 from collections import Counter, defaultdict
 from itertools import islice, combinations
 
-
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
@@ -68,7 +67,7 @@ class CalculateScores():
             "maxL": len(target),
         }
 
-        res = defaultdict(list())
+        res = defaultdict(list)
 
         for idx, subgram in enumerate(target):
             key = idx + 1
@@ -91,7 +90,7 @@ class CalculateScores():
                 lvalue = len(list(set(res[leftkey])))
             valueList.append((lvalue + 1) * (rvalue + 1))
         return {
-            target: meta["counts"]/meta["corpusL"] * (np.prod(valueList)) ** (1 / (2.0 * meta["maxL"]))
+            target: 1/meta["counts"] * (np.prod(valueList)) ** (1 / (2.0 * meta["maxL"]))
         }
 
     def run(self, write=False, outpath='./'):
@@ -120,10 +119,11 @@ class LinksOverTime():
     Input:
     """
 
-    def __init__(self, outputPath, scorePath, dataframe, scoreLimit=1.0, debug=False, windowSize=1):
+    def __init__(self, outputPath, scorePath, dataframe, authorColumn='authors', pubIDColumn="pubID", yearColumn='year', scoreLimit=1.0, debug=False, windowSize=1):
         self.dataframe = dataframe
-        self.authorCol = 'author'
-        self.pubIDCol = 'pubIDelm'
+        self.authorCol = authorColumn
+        self.pubIDCol = pubIDColumn
+        self.yearColumn = yearColumn
         self.scoreLimit = scoreLimit
         self.outpath = outputPath
         self.scorepath = scorePath
@@ -147,7 +147,7 @@ class LinksOverTime():
 
     def _createSlices(self):
         slices = []
-        years = sorted(self.dataframe.year.unique())
+        years = sorted(self.dataframe[self.yearColumn].unique())
         for x in self._window(years):
             slices.append(x)
         return slices
@@ -156,7 +156,7 @@ class LinksOverTime():
         """Create multilayer node register for time slice."""
         if self.debug is True:
             print(f'Slice: {sl[0]}')
-        dataframe = self.dataframe[self.dataframe.year.isin(sl)]
+        dataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
         dfNgramsList = [pd.read_csv(
             self.scorepath + str(slN) + '.tsv',
             sep='\t',
@@ -195,7 +195,7 @@ class LinksOverTime():
 
     def writeLinks(self, sl, recreate=False):
         """Write links to file."""
-        dataframe = self.dataframe[self.dataframe.year.isin(sl)]
+        dataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
         filePath = self.outpath + 'multilayerPajek_{0}.net'.format(sl[0])
 
         if os.path.isfile(filePath):
