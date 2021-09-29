@@ -4,8 +4,7 @@ import spacy
 try:
     nlp = spacy.load("en_core_web_lg")
 except OSError:
-    pass
-
+    nlp = spacy.load("en_core_web_sm")
 
 
 def lemmaSpacy(text):
@@ -19,7 +18,7 @@ def lemmaSpacy(text):
         )
         return tokens.lower()
     except:
-        return ''
+        raise
 
 
 def htmlTags(text):

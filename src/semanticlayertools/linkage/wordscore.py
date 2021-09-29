@@ -18,9 +18,27 @@ except LookupError:
 class CalculateScores():
     """Calculates ngram scores for documents.
 
-    Considered parts of speech are (see NLTK docs for details)
+    Considered parts of speech are (see `nltk` docs for details)
         - Nouns: 'NN', 'NNS', 'NNP', 'NNPS'
         - Adjectives: 'JJ', 'JJR', 'JJS'
+
+    All texts of the corpus are tokenized and POS tags are generated.
+    A global dictionary of counts of different ngrams is build in `allNGrams`.
+    The ngram relations of every text are listed in `outputDict`.
+
+    Scoring counts occurance of different words left and right of each single
+    token in each ngram, weighted by ngram size.
+
+    :param sourceDataframe: Dataframe containing the basic corpus
+    :type sourceDataframe: class:`pandas.DataFrame`
+    :param textColumn: Column name to use for ngram calculation
+    :type textColumn: str
+    :param pubIDColumn: Column name to use for publication identification (assumend to be unique)
+    :type pubIDColumn: str
+    :param yearColumn: Column name for temporal ordering publications, used during writing the scoring files
+    :type yearColumn: str
+    :param ngramsize: Maximum of considered ngrams (default: 5-gram)
+    :type ngramsize: int
     """
 
     def __init__(self, sourceDataframe, textColumn="text", pubIDColumn="pubID", yearColumn='year',  ngramsize=5,):
@@ -106,37 +124,48 @@ class CalculateScores():
             self.outputDict.update({key: tmpList})
         if write is True:
             for year, df in self.baseDF.groupby(self.yearCol):
-                with open(f'{outpath}{str(year)}.csv', 'a') as yearfile:
+                with open(f'{outpath}{str(year)}.tsv', 'a') as yearfile:
                     for pub in df[self.pubIDCol].unique():
                         for elem in self.outputDict[pub]:
-                            yearfile.write(f'{pub},{elem[0]},{elem[1]}')
+                            yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
         return scores, self.outputDict
 
 
 class LinksOverTime():
-    """To keep track of nodes over time, we need a global register of node names.
+    """Create multilayer pajek files for corpus.
 
-    Input:
+    To keep track of nodes over time, we need a global register of node names.
+    This class takes care of this, by adding new keys of authors, papers or
+    ngrams to the register.
+
+    :param dataframe: Source dataframe containing metadata of texts
+    (authors, publicationID and year)
+    :type dataframe: class:`pandas.DataFrame`
+    :param authorColumn: Column name for author information
+    :param pubIDColumn: Column name to identify publications
+    :param yearColumn: Column name with year information
     """
 
-    def __init__(self, outputPath, scorePath, dataframe, authorColumn='authors', pubIDColumn="pubID", yearColumn='year', scoreLimit=1.0, debug=False, windowSize=1):
+    def __init__(
+        self,
+        dataframe,
+        authorColumn='authors',
+        pubIDColumn="pubID",
+        yearColumn='year',
+        debug=False
+    ):
         self.dataframe = dataframe
         self.authorCol = authorColumn
         self.pubIDCol = pubIDColumn
         self.yearColumn = yearColumn
-        self.scoreLimit = scoreLimit
-        self.outpath = outputPath
-        self.scorepath = scorePath
         self.nodeMap = {}
         self.debug = debug
-        self.windowSize = windowSize
 
-    def _window(self, seq):
+    def _window(self, seq, n):
         """Return a sliding window (of width n) over data from the iterable.
 
         s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...
         """
-        n = self.windowSize
         it = iter(seq)
         result = tuple(islice(it, n))
         if len(result) == n:
@@ -145,27 +174,27 @@ class LinksOverTime():
             result = result[1:] + (elem,)
             yield result
 
-    def _createSlices(self):
+    def _createSlices(self, windowsize):
         slices = []
         years = sorted(self.dataframe[self.yearColumn].unique())
-        for x in self._window(years):
+        for x in self._window(years, windowsize):
             slices.append(x)
         return slices
 
-    def createNodeRegister(self, sl):
+    def createNodeRegister(self, sl, scorePath, scoreLimit):
         """Create multilayer node register for time slice."""
         if self.debug is True:
             print(f'Slice: {sl[0]}')
         dataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
         dfNgramsList = [pd.read_csv(
-            self.scorepath + str(slN) + '.tsv',
+            scorePath + str(slN) + '.tsv',
             sep='\t',
             header=None
         ) for slN in sl]
         ngramdataframe = pd.concat(dfNgramsList)
-        ngramdataframe = ngramdataframe[ngramdataframe[2] > self.scoreLimit]
+        ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
-        authorList = [x for y in dataframe[self.authorCol].values for x in y]
+        authorList = [x for y in [x.split(';') for x in dataframe[self.authorCol].values] for x in y]
 
         authors = [x for x in set(authorList) if x]
         pubs = dataframe[self.pubIDCol].fillna('None').unique()
@@ -193,10 +222,10 @@ class LinksOverTime():
                 )
             )
 
-    def writeLinks(self, sl, recreate=False):
-        """Write links to file."""
+    def writeLinks(self, sl, scorePath, scoreLimit, outpath='./', recreate=False):
+        """Write multilayer links to file in Pajek format."""
         dataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
-        filePath = self.outpath + 'multilayerPajek_{0}.net'.format(sl[0])
+        filePath = outpath + 'multilayerPajek_{0}.net'.format(sl[0])
 
         if os.path.isfile(filePath):
             if recreate is False:
@@ -207,12 +236,12 @@ class LinksOverTime():
                 os.remove(filePath)
 
         dfNgramsList = [pd.read_csv(
-            self.scorepath + str(slN) + '.tsv',
+            scorePath + str(slN) + '.tsv',
             sep='\t',
             header=None
         ) for slN in sl]
         ngramdataframe = pd.concat(dfNgramsList)
-        ngramdataframe = ngramdataframe[ngramdataframe[2] > self.scoreLimit]
+        ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
         with open(filePath, 'a') as file:
             file.write("# A network in a general multiplex format\n")
@@ -226,7 +255,7 @@ class LinksOverTime():
             if self.debug is True:
                 print('\tWriting inter-layer links to file.')
             for _, row in dataframe.fillna('').iterrows():
-                authors = row[self.authorCol]
+                authors = row[self.authorCol].split(';')
                 paper = row[self.pubIDCol]
                 if paper not in self.nodeMap.keys():
                     print(f'Cannot find {paper}')
@@ -269,8 +298,8 @@ class LinksOverTime():
                     except KeyError:
                         pass
 
-    def run(self, recreate=False):
-        """Create all data for slices."""
-        for sl in tqdm(self._createSlices()):
-            self.createNodeRegister(sl)
-            self.writeLinks(sl, recreate=recreate)
+    def run(self, recreate=False, windowsize=1, scorePath='./', outPath='./', scoreLimit=1.0):
+        """Create data for all slices."""
+        for sl in tqdm(self._createSlices(windowsize)):
+            self.createNodeRegister(sl, scorePath, scoreLimit)
+            self.writeLinks(sl, scorePath, scoreLimit, outpath=outPath, recreate=recreate)
