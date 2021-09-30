@@ -111,7 +111,7 @@ class CalculateScores():
             target: 1/meta["counts"] * (np.prod(valueList)) ** (1 / (2.0 * meta["maxL"]))
         }
 
-    def run(self, write=False, outpath='./'):
+    def run(self, write=False, outpath='./', recreate=False):
         """Get score for all documents."""
         scores = {}
         self.getTermPatterns()
@@ -124,7 +124,15 @@ class CalculateScores():
             self.outputDict.update({key: tmpList})
         if write is True:
             for year, df in self.baseDF.groupby(self.yearCol):
-                with open(f'{outpath}{str(year)}.tsv', 'a') as yearfile:
+                filePath = f'{outpath}{str(year)}.tsv'
+                if os.path.isfile(filePath):
+                    if recreate is False:
+                        raise IOError(
+                            f'File at {filePath} exists. Set recreate = True to rewrite file.'
+                            )
+                    if recreate is True:
+                        os.remove(filePath)
+                with open(filePath, 'a') as yearfile:
                     for pub in df[self.pubIDCol].unique():
                         for elem in self.outputDict[pub]:
                             yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
@@ -195,7 +203,6 @@ class LinksOverTime():
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
         authorList = [x for y in [x.split(';') for x in dataframe[self.authorCol].values] for x in y]
-
         authors = [x for x in set(authorList) if x]
         pubs = dataframe[self.pubIDCol].fillna('None').unique()
         ngrams = ngramdataframe[1].unique()
