@@ -8,7 +8,7 @@ class Clustering():
 
     def __init__(
         self,
-        infomapSettings="-N5 -imultilayer -fundirected"
+        infomapSettings="-N5 -imultilayer -fundirected --silent"
     ):
         self.infomult = infomap.Infomap(infomapSettings)
 

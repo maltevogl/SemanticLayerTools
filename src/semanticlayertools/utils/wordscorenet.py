@@ -34,35 +34,22 @@ def run(
     )
     clusters = Clustering()
     if tempFiles is True:
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            sc, outDict = score.run(
-                write=True, outpath=f'{tmpdirname}/scores/', recreate=True
-            )
-            links.run(
-                recreate=True,
-                scorePath=f'{tmpdirname}/scores/',
-                outPath=f'{tmpdirname}/links/',
-                scoreLimit=scoreLimit
-            )
-            clusters.run(
-                pajekPath=f'{tmpdirname}/links/',
-                outPath=outPath,
-            )
+        basedir = tempfile.TemporaryDirectory().name
     else:
         timestamp = datetime.now().strftime("_%Y_%m_%d")
         basedir = outPath + timestamp
-        for subdir in ['scores', 'links', 'clusters']:
-            os.makedirs(basedir + subdir)
-        sc, outDict = score.run(
-            write=True, outpath=f'{basedir}/scores/', recreate=True
-        )
-        links.run(
-            recreate=True,
-            scorePath=f'{basedir}/scores/',
-            outPath=f'{basedir}/links/',
-            scoreLimit=scoreLimit
-        )
-        clusters.run(
-            pajekPath=f'{basedir}/links/',
-            outPath=f'{basedir}/clusters',
-        )
+    for subdir in ['scores', 'links', 'clusters']:
+        os.makedirs(os.path.join(basedir, subdir))
+    sc, outDict = score.run(
+        write=True, outpath=f'{basedir}/scores/', recreate=True
+    )
+    links.run(
+        recreate=True,
+        scorePath=f'{basedir}/scores/',
+        outPath=f'{basedir}/links/',
+        scoreLimit=scoreLimit
+    )
+    clusters.run(
+        pajekPath=f'{basedir}/links/',
+        outPath=f'{outPath}',
+    )
