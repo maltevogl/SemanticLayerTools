@@ -2,7 +2,7 @@ import os
 import re
 from collections import Counter, defaultdict
 from itertools import islice, combinations
-
+from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
@@ -41,7 +41,15 @@ class CalculateScores():
     :type ngramsize: int
     """
 
-    def __init__(self, sourceDataframe, textColumn="text", pubIDColumn="pubID", yearColumn='year',  ngramsize=5,):
+    def __init__(
+        self,
+        sourceDataframe,
+        textColumn="text",
+        pubIDColumn="pubID",
+        yearColumn='year',
+        ngramsize=5,
+        debug=False
+    ):
 
         self.baseDF = sourceDataframe
         self.textCol = textColumn
@@ -51,8 +59,9 @@ class CalculateScores():
         self.outputDict = {}
         self.allNGrams = []
         self.counts = {}
-        self.allgramslist = []
+        self.corpussize = 1
         self.uniqueNGrams = ()
+        self.debug=debug
 
     def getTermPatterns(self):
         """Create dictionaries of occuring ngrams."""
@@ -72,51 +81,47 @@ class CalculateScores():
             self.outputDict[row[self.pubIDCol]] = tempNGram
         self.allNGrams = allNGrams
         allgrams = [x for y in [y for x, y in self.allNGrams.items()] for x in y]
-        self.allgramslist = allgrams
+        self.corpussize = len(allgrams)
         self.counts = Counter(allgrams)
         self.uniqueNGrams = set(allgrams)
 
     def getScore(self, target):
         """Calculate ngram score."""
-        meta = {
-            "target": target,
-            "counts": self.counts[target],
-            "corpusL": len(self.allgramslist),
-            "maxL": len(target),
-        }
-
-        res = defaultdict(list)
-
-        for idx, subgram in enumerate(target):
-            key = idx + 1
-            for tup in self.allNGrams[2]:
-                if tup[1:][0] == subgram:
-                    res[f"l_{key}"].append(tup[:1][0])
-                elif tup[:-1][0] == subgram:
-                    res[f"r_{key}"].append(tup[1:][0])
         valueList = []
-        for L in range(1, meta["maxL"] + 1, 1):
-            leftkey = f"l_{L}"
-            rightkey = f"r_{L}"
-            if rightkey not in res.keys():
-                rvalue = 0
-            else:
-                rvalue = len(list(set(res[rightkey])))
-            if leftkey not in res.keys():
-                lvalue = 0
-            else:
-                lvalue = len(list(set(res[leftkey])))
+        for _, subgram in enumerate(target):
+            contains = [x for x in self.allNGrams[2] if subgram in x]
+            rvalue = len(set(x for x in contains if x[0] == subgram))
+            lvalue = len(set(x for x in contains if x[1] == subgram))
             valueList.append((lvalue + 1) * (rvalue + 1))
         return {
-            target: 1/meta["counts"] * (np.prod(valueList)) ** (1 / (2.0 * meta["maxL"]))
+            target: 1/self.counts[target] * (np.prod(valueList)) ** (1 / (2.0 * len(target)))
         }
 
-    def run(self, write=False, outpath='./', recreate=False):
+    def _calcBatch(self, batch):
+        res = []
+        for elem in tqdm(batch):
+            res.append(self.getScore(elem))
+        return res
+
+    def run(self, write=False, outpath='./', recreate=False, limitCPUs=True):
         """Get score for all documents."""
         scores = {}
         self.getTermPatterns()
-        for target in tqdm(self.uniqueNGrams):
-            scores.update(self.getScore(target))
+        if self.debug is True:
+            print(f'Found {len(self.uniqueNGrams)} unique {self.ngramEnd}-grams.')
+        if limitCPUs is True:
+            ncores = int(cpu_count()*1/4)
+        else:
+            ncores = cpu_count() - 2
+        pool = Pool(ncores)
+        chunk_size = int(len(self.uniqueNGrams)/ncores)
+        batches = [
+            list(self.uniqueNGrams)[i:i+chunk_size] for i in range(0, len(self.uniqueNGrams), chunk_size)
+        ]
+        ncoresResults = pool.map(self._calcBatch, batches)
+        results = [x for y in ncoresResults for x in y]
+        for elem in results:
+            scores.update(elem)
         for key, val in self.outputDict.items():
             tmpList = []
             for elem in val:

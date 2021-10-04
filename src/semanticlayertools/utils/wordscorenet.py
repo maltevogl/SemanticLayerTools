@@ -16,25 +16,11 @@ def run(
     yearColumn='year',
     authorColumn='author',
     pubIDColumn='publicationID',
+    ngramsize=5,
     scoreLimit=1.0
 ):
     """Run all steps for multilayer network generation using wordscoring."""
-    clean = dataframe[textColumn].apply(lambda row: lemmaSpacy(htmlTags(row)))
 
-    dataframe.insert(0, 'clean', clean)
-
-    score = CalculateScores(
-        dataframe,
-        textColumn='clean',
-        pubIDColumn=pubIDColumn
-    )
-    links = LinksOverTime(
-        dataframe,
-        authorColumn=authorColumn,
-        pubIDColumn=pubIDColumn,
-        yearColumn=yearColumn
-    )
-    clusters = Clustering()
     if tempFiles is True:
         basedir = tempfile.TemporaryDirectory().name
         clusterout = outPath
@@ -44,19 +30,47 @@ def run(
         clusterout = f'{basedir}/clusters/'
     for subdir in ['scores', 'links', 'clusters']:
         os.makedirs(os.path.join(basedir, subdir))
+    print(f'Start cleaning {textColumn} column.')
+    clean = dataframe[textColumn].apply(lambda row: lemmaSpacy(htmlTags(row)))
+
+    dataframe.insert(0, 'clean', clean)
+
+    if tempFiles is False:
+        dataframe.to_json(f'{basedir}/sourceDFcleaned.json', orient='records', lines=True)
+    print('\tDone.')
+    score = CalculateScores(
+        dataframe,
+        textColumn='clean',
+        pubIDColumn=pubIDColumn,
+        ngramsize=ngramsize
+    )
+    links = LinksOverTime(
+        dataframe,
+        authorColumn=authorColumn,
+        pubIDColumn=pubIDColumn,
+        yearColumn=yearColumn
+    )
+    clusters = Clustering()
+
+    print(f'Start calculating scores for {dataframe.shape[0]} texts.')
     score.run(
         write=True, outpath=f'{basedir}/scores/', recreate=True
     )
+    print('\tDone.')
+    print(f'Start creating links with scoreLimit > {scoreLimit}.')
     links.run(
         recreate=True,
         scorePath=f'{basedir}/scores/',
         outPath=f'{basedir}/links/',
         scoreLimit=scoreLimit
     )
+    print('\tDone.')
+    print('Start calculating infomap clusters.')
     clusters.run(
         pajekPath=f'{basedir}/links/',
         outPath=clusterout,
     )
+    print('\tDone.')
     with open(f'{basedir}/README.txt', 'w+') as file:
         file.write(
             f"""Run of clustering {datetime.now().strftime("%Y_%m_%d")}
@@ -70,7 +84,7 @@ def run(
         )
         if tempFiles is True:
             file.write(
-                'Temporay files for wordscores and multilayer network were deleted.'
+                'Temporay files for wordscores and multilayer networks were deleted.'
             )
     print(f"""Results in {clusterout}.\n
     Head over to https://www.mapequation.org/alluvial/ to visualize the ftree files.
