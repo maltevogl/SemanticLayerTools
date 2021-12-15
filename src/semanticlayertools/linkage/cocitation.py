@@ -17,7 +17,7 @@ limitRefLength = TypeVar('limitRefLength', bool, int)
 debugVar = TypeVar('debugVar', bool, str)
 
 class Cocitations():
-    """Cocitation calculations."""
+    """Create cocitation networks."""
 
     def __init__(
         self, inpath, outpath, columnName,
