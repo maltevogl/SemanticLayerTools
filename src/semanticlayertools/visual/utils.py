@@ -72,5 +72,4 @@ def streamgraph(filepath: str, smooth: smoothing=False, minClusterSize: int=1000
     for label in temp:
         label.set_visible(False)
     ax.set_axisbelow(True)
-    #plt.show()
     return fig

@@ -18,6 +18,7 @@ class TimeCluster():
         self, inpath: str, outpath: str,
         resolution: float = 0.003, intersliceCoupling: float = 0.4,
         timerange: tuple = (1945, 2005),
+
         debug: debugVar = False
     ):
         starttime = time.time()
@@ -33,7 +34,7 @@ class TimeCluster():
             f'timeclusters_{timerange[0]}-{timerange[1]}_res_{resolution}_intersl_{intersliceCoupling}.csv'
         )
         if os.path.isfile(self.outfile):
-            raise OSError('Output file exists. Please remove.')
+            raise OSError(f'Output file at {self.outfile} exists. Aborting.')
 
         edgefiles = [x for x in os.listdir(inpath) if x.endswith('_GC.net')]
 
@@ -57,7 +58,7 @@ class TimeCluster():
             f"loaded in {time.time() - starttime} seconds."
         )
 
-    def optimize(self):
+    def optimize(self, clusterSizeCompare: int=1000):
         """Optimize clusters accross time slices."""
         starttime = time.time()
 
@@ -109,10 +110,10 @@ class TimeCluster():
                 outfile.write(
                     f"{elem[0]},{elem[1]},{elem[2]}\n"
                 )
-
+        largeclu = [(x,len(x.vs)) for x in subgraphs if len(x.vs)>clusterSizeCompare]
         print(
             f'Finished in {time.time() - starttime} seconds.'
-            f"Found {len(subgraphs)} clusters."
+            f"Found {len(subgraphs)} clusters, with {len(largeclu)} larger then {clusterSizeCompare} nodes."
         )
 
         return commun

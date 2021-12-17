@@ -6,6 +6,7 @@ import spacy
 import textacy
 import textacy.tm
 import pandas as pd
+import numpy as np
 import multiprocessing
 
 num_processes = multiprocessing.cpu_count()
@@ -17,22 +18,28 @@ nlp = spacy.load(mainLanguageCorp)
 class ClusterReports():
 
     def __init__(
-        self, infile:str, metadatapath:str, outpath:str, iteration: int,
+        self, infile:str, metadatapath:str, outpath:str,
         numberProc: int=num_processes, minClusterSize: int=1000
     ):
-        self.iteration = iteration
         self.numberProc = numberProc
         self.minClusterSize = minClusterSize
         self.metadatapath = metadatapath
-        self.outpath = outpath
-
         self.clusterdf = pd.read_csv(infile)
         basedata = self.clusterdf.groupby(['year', 'cluster']).size().to_frame('counts').reset_index()
-        largeClusterList = list(basedata.groupby('cluster').sum().query(f'counts > {self.minClusterSize}').index)
-
+        largeClusterList = list(
+            basedata.groupby('cluster').sum().query(f'counts > {self.minClusterSize}').index
+        )
         self.clusternodes = self.clusterdf.query(
             'cluster in @largeClusterList'
         )
+        outfolder = infile.split(os.path.sep)[-1].split('.')[0]
+        self.outpath = os.path.join(outpath, outfolder)
+        if os.path.isdir(self.outpath):
+            raise OSError(f'Output folder {self.outpath} exists. Aborting.')
+        else:
+            os.mkdir(self.outpath)
+            for clu in largeClusterList:
+                os.mkdir(os.path.join(self.outpath, f'Cluster_{clu}'))
 
     def create_corpus(self, dataframe):
         """Create corpus out of dataframe."""
@@ -161,9 +168,28 @@ class ClusterReports():
             )
             return cluster
 
-    def processClusters(self, publicationIDcolumn: str='nodeID'):
-        for filename in tqdm(os.listdir(self.metadatapath)):
-            filepath = os.path.join(self.metadatapath, filename)
-            data = pd.read_json(filepath, lines=True)
-            selectMerge = data.merge(self.clusternodes, left_on=publicationIDcolumn, right_on='node', how='inner')
-            selectMerge.to_json(os.path.join(self.outpath, 'merge_' + filename) , orient='records', lines=True)
+    def _mergeData(self, filename, publicationIDcolumn: str='nodeID'):
+        filepath = os.path.join(self.metadatapath, filename)
+        data = pd.read_json(filepath, lines=True)
+        selectMerge = data.merge(self.clusternodes, left_on=publicationIDcolumn, right_on='node', how='inner')
+        if selectMerge.shape[0]>0:
+            for clu, g0 in selectMerge.groupby('cluster'):
+                g0.to_json(os.path.join(self.outpath, f'Cluster_{clu}', 'merged_' + filename) , orient='records', lines=True)
+        self.pbar.update(1)
+        return
+
+    def gatherClusterMetadata(self):
+        filenames = os.listdir(self.metadatapath)
+        #chunk_size = int(len(filenames) / self.numberProc)
+        #chunks = np.array_split(filenames, chunk_size)
+        self.pbar = tqdm(len(filenames))
+        pool = multiprocessing.Pool(self.numberProc)
+        result = pool.map(self._mergeData, filenames, chunksize=int(len(filenames) / self.numberProc))
+        return
+
+            # filepath = os.path.join(self.metadatapath, filename)
+            # data = pd.read_json(filepath, lines=True)
+            # selectMerge = data.merge(self.clusternodes, left_on=publicationIDcolumn, right_on='node', how='inner')
+            # if selectMerge.shape[0]>0:
+            #     for clu, g0 in selectMerge.groupby('cluster'):
+            #         g0.to_json(os.path.join(self.outpath, f'Cluster_{clu}', 'merged_' + filename) , orient='records', lines=True)
