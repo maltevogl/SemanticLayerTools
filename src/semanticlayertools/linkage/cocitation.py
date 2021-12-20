@@ -16,12 +16,14 @@ num_processes = multiprocessing.cpu_count()
 limitRefLength = TypeVar('limitRefLength', bool, int)
 debugVar = TypeVar('debugVar', bool, str)
 
+
 class Cocitations():
     """Create cocitation networks."""
 
     def __init__(
         self, inpath, outpath, columnName,
-        numberProc: int=num_processes, limitRefLength: limitRefLength=False, debug: debugVar=False,
+        numberProc: int = num_processes, limitRefLength: limitRefLength = False,
+        debug: debugVar = False,
     ):
         self.inpath = inpath
         self.outpath = outpath
@@ -35,7 +37,7 @@ class Cocitations():
         res = []
         if type(self.limitRefLength) == int:
             reflen = chunk[self.columnName].apply(
-                lambda x: True if type(x)==list and len(x)<=self.limitRefLength else False
+                lambda x: True if type(x) == list and len(x) <= self.limitRefLength else False
             )
             data = chunk[reflen].copy()
         else:
@@ -65,7 +67,7 @@ class Cocitations():
             sortedComponents = sorted(
                 [(x, len(x), len(x)*100/len(tempG.vs)) for x in components], key=lambda x: x[1], reverse=True
             )
-            with open(os.path.join(self.outpath,infilename + '_graphMetadata.txt'), 'w') as outfile:
+            with open(os.path.join(self.outpath, infilename + '_graphMetadata.txt'), 'w') as outfile:
                 outfile.write(f'Graph derived from {filepath}\nSummary:\n')
                 outfile.write(tempG.summary() + '\n\nComponents (ordered by size):\n\n')
                 for idx, elem in enumerate(sortedComponents):
@@ -76,9 +78,9 @@ class Cocitations():
             giantComponent = sortedComponents[0]
             giantComponentGraph = tempG.vs.select(giantComponent[0]).subgraph()
             giantComponentGraph.write_pajek(
-                os.path.join(self.outpath,infilename + '_GC.net')
+                os.path.join(self.outpath, infilename + '_GC.net')
             )
-            with open(os.path.join(self.outpath,infilename + '.ncol'), 'w') as outfile:
+            with open(os.path.join(self.outpath, infilename + '.ncol'), 'w') as outfile:
                 for edge in sortCoCitCounts:
                     outfile.write(f"{edge[0]} {edge[1]} {edge[2]}\n")
         except:

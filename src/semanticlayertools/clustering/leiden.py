@@ -18,7 +18,6 @@ class TimeCluster():
         self, inpath: str, outpath: str,
         resolution: float = 0.003, intersliceCoupling: float = 0.4,
         timerange: tuple = (1945, 2005),
-
         debug: debugVar = False
     ):
         starttime = time.time()
@@ -116,4 +115,4 @@ class TimeCluster():
             f"Found {len(subgraphs)} clusters, with {len(largeclu)} larger then {clusterSizeCompare} nodes."
         )
 
-        return commun
+        return self.outfile, commun
