@@ -1,8 +1,18 @@
+import os
+from typing import TypeVar
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from scipy import stats
-from typing import TypeVar
+
+from collections import Counter
+import plotly.express as px
+import plotly.graph_objects as go
+
+from sentence_transformers import SentenceTransformer, util
+import umap
+import torch
 
 smoothing = TypeVar('smoothing', bool, float)
 
@@ -73,3 +83,43 @@ def streamgraph(filepath: str, smooth: smoothing=False, minClusterSize: int=1000
         label.set_visible(False)
     ax.set_axisbelow(True)
     return fig
+
+
+def embeddedText(infolderpath: str, columnName: str, outpath: str):
+    """Create embedding for corpus text."""
+    print('Initializing embedder model.')
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    clusterfiles = os.listdir(infolderpath)
+    clusterdf = []
+    for x in clusterfiles:
+        try:
+            clusterdf.append(
+                pd.read_json(os.path.join(infolderpath, x), lines=True)
+            )
+        except ValueError:
+            raise
+    dataframe = pd.concat(clusterdf, ignore_index=True)
+    corpus = [x[0] for x in dataframe[columnName].fillna('').values if x]
+    print('Start embedding.')
+    corpus_embeddings = model.encode(
+        corpus,
+        convert_to_tensor=True
+    )
+    torch.save(
+        corpus_embeddings,
+        f'{os.path.join(outpath, "embeddedCorpus.pt")}'
+    )
+    print('\tDone\nStarting mapping to 2D.')
+    corpus_embeddings_2D = umap.UMAP(
+        n_neighbors=15,
+        n_components=2,
+        metric='cosine'
+    ).fit_transform(corpus_embeddings)
+    corpus_embeddings_2D.tofile(
+        f'{os.path.join(outpath, "embeddedCorpus_2d.csv")}',
+        sep=','
+    )
+    print('\tDone.')
+    dataframe.insert(0, 'x', corpus_embeddings_2D[:, 0])
+    dataframe.insert(0, 'y', corpus_embeddings_2D[:, 1])
+    return dataframe
