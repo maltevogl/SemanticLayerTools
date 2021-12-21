@@ -1,6 +1,7 @@
 """Link documents by cocitation."""
 import os
 import time
+import re
 import multiprocessing
 from itertools import combinations
 from collections import Counter
@@ -22,14 +23,17 @@ class Cocitations():
 
     def __init__(
         self, inpath, outpath, columnName,
-        numberProc: int = num_processes, limitRefLength: limitRefLength = False,
-        debug: debugVar = False,
+        numberProc: int = num_processes,
+        limitRefLength: limitRefLength = False,
+        timerange: tuple = (1945, 2005),
+        debug: debugVar = False
     ):
         self.inpath = inpath
         self.outpath = outpath
         self.columnName = columnName
         self.numberProc = numberProc
         self.limitRefLength = limitRefLength
+        self.timerange = timerange
         self.debug = debug
 
     def getCombinations(self, chunk):
@@ -75,6 +79,13 @@ class Cocitations():
                     outfile.write(
                         f"{idx}:\n\t{elem[1]} nodes ({elem[2]:.3f}% of full graph)\n\t{len(gcompTemp.es)} edges ({len(gcompTemp.es)*100/len(tempG.es):.3f}% of full graph)\n\n"
                     )
+                    if idx == 0:
+                        gcouttuple = (
+                            elem[1],
+                            elem[2],
+                            len(gcompTemp.es),
+                            len(gcompTemp.es)*100/len(tempG.es)
+                        )
             giantComponent = sortedComponents[0]
             giantComponentGraph = tempG.vs.select(giantComponent[0]).subgraph()
             giantComponentGraph.write_pajek(
@@ -87,15 +98,31 @@ class Cocitations():
             raise
         if self.debug == "l2":
             print(f'\tDone in {time.time() - starttime} seconds.')
-        return
+        return gcouttuple
 
     def processFolder(self):
         """Calculate cocitation for all files in folder."""
         starttime = time.time()
-        for file in tqdm(os.listdir(self.inpath)):
-            try:
-                self.calculateCoCitation(os.path.join(self.inpath, file))
-            except:
-                raise
+        with open(
+            os.path.join(
+                self.outpath, 'Giant_Component_properties.csv'
+            ), 'w'
+        ) as gcmetafile:
+            gcmetafile.write('year,nodes,nodespercent,edges,edgepercent\n')
+            for file in tqdm(os.listdir(self.inpath), leave=False):
+                try:
+                    year = re.findall(r'\d{4}', file)[0]
+                except:
+                    raise
+                if self.timerange[0] <= int(year) <= self.timerange[1]:
+                    try:
+                        outtuple = self.calculateCoCitation(
+                            os.path.join(self.inpath, file)
+                        )
+                        gcmetafile.write(
+                            f'{year},{outtuple[0]},{outtuple[1]},{outtuple[2]},{outtuple[3]}\n'
+                        )
+                    except:
+                        raise
         if self.debug is True:
             print(f'\tDone in {time.time() - starttime} seconds.')

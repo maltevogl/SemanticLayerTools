@@ -100,7 +100,9 @@ class ClusterReports():
             outtext += f'\t\t{topic}\n'
         return outtext
 
-    def fullReport(self, cluster):
+    def fullReport(self, cluster, authorColumnName: str = 'author',
+        affiliationColumnName: str = 'aff'
+    ):
         """Generate full cluster report."""
         starttime = time.time()
         clusterpath = os.path.join(self.outpath, f'Cluster_{cluster}')
@@ -115,21 +117,21 @@ class ClusterReports():
                 raise
         dfCluster = pd.concat(clusterdf, ignore_index=True)
         basedf = self.clusternodes.query('cluster == @cluster')
-        inputnodes = basedf.node.values
-        foundNodes = [x[0] for x in dfCluster.bibcode.values]
-        notFound = [x for x in inputnodes if x not in foundNodes]
+        inputnodes = set(basedf.node.values)
+        notFound = inputnodes.difference(set(dfCluster.nodeID.values))
         topAuthors = Counter(
-            [x for y in [x for x in dfCluster.author.values if type(x) == list] for x in y]
+            [x for y in dfCluster[authorColumnName].fillna('').values for x in y]
         ).most_common(20)
         authortext = ''
         for x in topAuthors:
             authortext += f'\t{x[0]}: {x[1]}\n'
         topAffils = Counter(
-            [x for y in [x for x in dfCluster.aff.values if type(x) == list] for x in y]
+            [x for y in dfCluster[affiliationColumnName].fillna('').values for x in y]
         ).most_common(21)
         affiltext = ''
         for x in topAffils[1:]:
             affiltext += f'\t{x[0]}: {x[1]}\n'
+        print(f'\tFinished base report for cluster {cluster}.')
         corpus = self.create_corpus(dfCluster)
         warnings.simplefilter(action='ignore', category=FutureWarning)
         topics_15 = self.find_topics(corpus, n_topics=15, top_words=20)
@@ -151,6 +153,7 @@ Got {len(inputnodes)} unique publications in time range: {basedf.year.min()} to 
     {topics_50}
 
 Finished analysis of cluster {cluster} in {time.time()- starttime} seconds."""
+        print('\t\tFinished topics.')
         return outtext
 
     def _mergeData(self, filename, publicationIDcolumn: str = 'nodeID'):
@@ -188,7 +191,7 @@ Finished analysis of cluster {cluster} in {time.time()- starttime} seconds."""
         return
 
     def writeReports(self):
-        for cluster in tqdm(self.largeClusterList):
+        for cluster in tqdm(self.largeClusterList, leave=False):
             outtext = self.fullReport(cluster)
             with open(f'{self.outpath}Cluster_{cluster}.txt', 'w') as file:
                 file.write(outtext)

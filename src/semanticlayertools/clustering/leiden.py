@@ -39,7 +39,7 @@ class TimeCluster():
 
         self.graphDict = {}
 
-        for idx in tqdm(range(len(edgefiles))):
+        for idx in tqdm(range(len(edgefiles)), leave=False):
             try:
                 year = re.findall(r'\d{4}', edgefiles[idx])[0]
             except:
@@ -66,7 +66,7 @@ class TimeCluster():
             interslice_weight=self.interslice_param,
             vertex_id_attr='name'
         )
-        print('\tHave set layers.')
+        print('\tSet layers.')
 
         partitions = [
             la.CPMVertexPartition(
@@ -76,7 +76,7 @@ class TimeCluster():
                 resolution_parameter=self.res_param
             ) for H in layers
         ]
-        print('\tHave set partitions.')
+        print('\tSet partitions.')
 
         interslice_partition = la.CPMVertexPartition(
             interslice_layer,
@@ -84,7 +84,7 @@ class TimeCluster():
             node_sizes='node_size',
             weights='weight'
         )
-        print('\tHave set interslice partions.')
+        print('\tSet interslice partions.')
 
         self.optimiser.optimise_partition_multiplex(
             partitions + [interslice_partition]

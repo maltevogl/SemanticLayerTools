@@ -1,6 +1,5 @@
 """Runs all steps to create reports for cocite temporal network clustering."""
-import tempfile
-from datetime import datetime
+import time
 import os
 import multiprocessing
 
@@ -12,20 +11,29 @@ num_processes = multiprocessing.cpu_count()
 
 
 def run(
-    basepath,
-    cociteOutpath,
-    timeclusterOutpath,
-    reportsOutpath,
-    resolution,
-    intersliceCoupling,
+    inputFilepath: str,
+    cociteOutpath: str,
+    timeclusterOutpath: str,
+    reportsOutpath: str,
+    resolution: float,
+    intersliceCoupling: float,
     minClusterSize: int = 1000,
-    timerange=(1945, 2005),
+    timerange: tuple = (1945, 2005),
     referenceColumnName: str = 'reference',
     numberproc: int = num_processes,
     limitRefLength=False, debug=False
 ):
+    for path in [cociteOutpath, timeclusterOutpath, reportsOutpath]:
+        os.makedirs(path)
+    starttime = time.time()
     cocites = Cocitations(
-        basepath, cociteOutpath, referenceColumnName,  limitRefLength, debug
+        inpath=inputFilepath,
+        outpath=cociteOutpath,
+        columnName=referenceColumnName,
+        numberProc=numberproc,
+        limitRefLength=limitRefLength,
+        timerange=timerange,
+        debug=debug
     )
     cocites.processFolder()
     timeclusters = TimeCluster(
@@ -39,7 +47,7 @@ def run(
     timeclfile, _ = timeclusters.optimize()
     clusterreports = ClusterReports(
         infile=timeclfile,
-        metadatapath=basepath,
+        metadatapath=inputFilepath,
         outpath=reportsOutpath,
         numberProc=numberproc,
         minClusterSize=minClusterSize,
@@ -47,4 +55,4 @@ def run(
     )
     clusterreports.gatherClusterMetadata()
     clusterreports.writeReports()
-    print('Done')
+    print(f'Done after {time.time() - starttime} seconds.')
