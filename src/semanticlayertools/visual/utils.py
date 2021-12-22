@@ -10,7 +10,7 @@ from collections import Counter
 import plotly.express as px
 import plotly.graph_objects as go
 
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer
 import umap
 import torch
 
