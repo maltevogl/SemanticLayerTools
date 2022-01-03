@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 
 from sentence_transformers import SentenceTransformer
 import umap
+import hdbscan
 import torch
 
 smoothing = TypeVar('smoothing', bool, float)
@@ -126,7 +127,6 @@ def embeddedTextPlotting(infolderpath: str, columnName: str, outpath: str):
 def embeddedTextClustering(infolderpath: str, columnName: str, emdeddingspath: str, outpath: str):
     """Create clustering based on embedding for corpus texts."""
     print('Initializing embedder model.')
-    model = SentenceTransformer('all-MiniLM-L6-v2')
     clusterfiles = os.listdir(infolderpath)
     clusterdf = []
     for x in clusterfiles:
@@ -137,17 +137,22 @@ def embeddedTextClustering(infolderpath: str, columnName: str, emdeddingspath: s
         except ValueError:
             raise
     dataframe = pd.concat(clusterdf, ignore_index=True)
-    corpus = [x[0] for x in dataframe[columnName].fillna('').values if x]
+    dataframe = dataframe.dropna(subset=[columnName], axis=0)
+    corpus = [x[0] for x in dataframe[columnName].values if x]
     print('Loading embedding.')
     corpus_embeddings = torch.load(embeddingspath)
     print('\tDone\nStarting mapping to lower dimensions.')
-    corpus_embeddings = umap.UMAP(
+    corpus_embeddings_50D = umap.UMAP(
         n_neighbors=15,
         n_components=50,
         metric='cosine'
     ).fit_transform(corpus_embeddings)
-    np.savetxt(os.path.join(outpath, "embeddedCorpus_50d.csv"), corpus_embeddings_2D, delimiter=',', newline='\n') 
-    print('\tDone.')
-    dataframe.insert(0, 'x', corpus_embeddings_2D[:, 0])
-    dataframe.insert(0, 'y', corpus_embeddings_2D[:, 1])
+    np.savetxt(os.path.join(outpath, "embeddedCorpus_50d.csv"), corpus_embeddings_50D, delimiter=',', newline='\n')
+    print('\tDone.\nStarting clustering.')
+    cluster = hdbscan.HDBSCAN(
+        min_cluster_size=20,
+        metric='euclidean',
+        cluster_selection_method='eom'
+    ).fit(corpus_embeddings_50D)
+    dataframe.insert(0, 'label', cluster.labels_)
     return dataframe
