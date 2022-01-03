@@ -85,7 +85,7 @@ def streamgraph(filepath: str, smooth: smoothing=False, minClusterSize: int=1000
     return fig
 
 
-def embeddedText(infolderpath: str, columnName: str, outpath: str):
+def embeddedTextPlotting(infolderpath: str, columnName: str, outpath: str):
     """Create embedding for corpus text."""
     print('Initializing embedder model.')
     model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -99,7 +99,8 @@ def embeddedText(infolderpath: str, columnName: str, outpath: str):
         except ValueError:
             raise
     dataframe = pd.concat(clusterdf, ignore_index=True)
-    corpus = [x[0] for x in dataframe[columnName].fillna('').values if x]
+    dataframe = dataframe.dropna(subset=[columnName], axis=0)
+    corpus = [x[0] for x in dataframe[columnName].values if x]
     print('Start embedding.')
     corpus_embeddings = model.encode(
         corpus,
@@ -115,10 +116,37 @@ def embeddedText(infolderpath: str, columnName: str, outpath: str):
         n_components=2,
         metric='cosine'
     ).fit_transform(corpus_embeddings)
-    corpus_embeddings_2D.tofile(
-        f'{os.path.join(outpath, "embeddedCorpus_2d.csv")}',
-        sep=','
-    )
+    np.savetxt(os.path.join(outpath, "embeddedCorpus_2d.csv"), corpus_embeddings_2D, delimiter=',', newline='\n')
+    print('\tDone.')
+    dataframe.insert(0, 'x', corpus_embeddings_2D[:, 0])
+    dataframe.insert(0, 'y', corpus_embeddings_2D[:, 1])
+    return dataframe
+
+
+def embeddedTextClustering(infolderpath: str, columnName: str, emdeddingspath: str, outpath: str):
+    """Create clustering based on embedding for corpus texts."""
+    print('Initializing embedder model.')
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    clusterfiles = os.listdir(infolderpath)
+    clusterdf = []
+    for x in clusterfiles:
+        try:
+            clusterdf.append(
+                pd.read_json(os.path.join(infolderpath, x), lines=True)
+            )
+        except ValueError:
+            raise
+    dataframe = pd.concat(clusterdf, ignore_index=True)
+    corpus = [x[0] for x in dataframe[columnName].fillna('').values if x]
+    print('Loading embedding.')
+    corpus_embeddings = torch.load(embeddingspath)
+    print('\tDone\nStarting mapping to lower dimensions.')
+    corpus_embeddings = umap.UMAP(
+        n_neighbors=15,
+        n_components=50,
+        metric='cosine'
+    ).fit_transform(corpus_embeddings)
+    np.savetxt(os.path.join(outpath, "embeddedCorpus_50d.csv"), corpus_embeddings_2D, delimiter=',', newline='\n') 
     print('\tDone.')
     dataframe.insert(0, 'x', corpus_embeddings_2D[:, 0])
     dataframe.insert(0, 'y', corpus_embeddings_2D[:, 1])
