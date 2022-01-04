@@ -1,6 +1,5 @@
 import os
-import re
-from collections import Counter, defaultdict
+from collections import Counter
 from itertools import islice, combinations
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
@@ -61,7 +60,7 @@ class CalculateScores():
         self.counts = {}
         self.corpussize = 1
         self.uniqueNGrams = ()
-        self.debug=debug
+        self.debug = debug
 
     def getTermPatterns(self):
         """Create dictionaries of occuring ngrams."""
@@ -151,8 +150,7 @@ class LinksOverTime():
     This class takes care of this, by adding new keys of authors, papers or
     ngrams to the register.
 
-    :param dataframe: Source dataframe containing metadata of texts
-    (authors, publicationID and year)
+    :param dataframe: Source dataframe containing metadata of texts (authors, publicationID and year)
     :type dataframe: class:`pandas.DataFrame`
     :param authorColumn: Column name for author information
     :param pubIDColumn: Column name to identify publications

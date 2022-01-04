@@ -117,14 +117,21 @@ def embeddedTextPlotting(infolderpath: str, columnName: str, outpath: str):
         n_components=2,
         metric='cosine'
     ).fit_transform(corpus_embeddings)
-    np.savetxt(os.path.join(outpath, "embeddedCorpus_2d.csv"), corpus_embeddings_2D, delimiter=',', newline='\n')
+    np.savetxt(
+        os.path.join(outpath, "embeddedCorpus_2d.csv"),
+        corpus_embeddings_2D,
+        delimiter=',',
+        newline='\n'
+    )
     print('\tDone.')
     dataframe.insert(0, 'x', corpus_embeddings_2D[:, 0])
     dataframe.insert(0, 'y', corpus_embeddings_2D[:, 1])
     return dataframe
 
 
-def embeddedTextClustering(infolderpath: str, columnName: str, emdeddingspath: str, outpath: str):
+def embeddedTextClustering(
+    infolderpath: str, columnName: str, emdeddingspath: str, outpath: str
+):
     """Create clustering based on embedding for corpus texts."""
     print('Initializing embedder model.')
     clusterfiles = os.listdir(infolderpath)
@@ -138,16 +145,20 @@ def embeddedTextClustering(infolderpath: str, columnName: str, emdeddingspath: s
             raise
     dataframe = pd.concat(clusterdf, ignore_index=True)
     dataframe = dataframe.dropna(subset=[columnName], axis=0)
-    corpus = [x[0] for x in dataframe[columnName].values if x]
     print('Loading embedding.')
-    corpus_embeddings = torch.load(embeddingspath)
+    corpus_embeddings = torch.load(emdeddingspath)
     print('\tDone\nStarting mapping to lower dimensions.')
     corpus_embeddings_50D = umap.UMAP(
         n_neighbors=15,
         n_components=50,
         metric='cosine'
     ).fit_transform(corpus_embeddings)
-    np.savetxt(os.path.join(outpath, "embeddedCorpus_50d.csv"), corpus_embeddings_50D, delimiter=',', newline='\n')
+    np.savetxt(
+        os.path.join(outpath, "embeddedCorpus_50d.csv"),
+        corpus_embeddings_50D,
+        delimiter=',',
+        newline='\n'
+    )
     print('\tDone.\nStarting clustering.')
     cluster = hdbscan.HDBSCAN(
         min_cluster_size=20,

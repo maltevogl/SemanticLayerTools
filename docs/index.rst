@@ -12,8 +12,12 @@ This project collects tools to build semantic layers from text corpora.
    :maxdepth: 2
    :caption: Contents:
 
-   linkage
    cleaning
+   pipelines
+   linkage
+   clustering
+   visual
+
 
 
 
