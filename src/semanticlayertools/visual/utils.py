@@ -100,8 +100,8 @@ def embeddedTextPlotting(infolderpath: str, columnName: str, outpath: str):
         except ValueError:
             raise
     dataframe = pd.concat(clusterdf, ignore_index=True)
-    dataframe = dataframe.dropna(subset=[columnName], axis=0)
-    corpus = [x[0] for x in dataframe[columnName].values if x]
+    dataframe = dataframe.dropna(subset=[columnName], axis=0).reset_index(drop=True)
+    corpus = [x[0] for x in dataframe[columnName].values]
     print('Start embedding.')
     corpus_embeddings = model.encode(
         corpus,
@@ -144,7 +144,7 @@ def embeddedTextClustering(
         except ValueError:
             raise
     dataframe = pd.concat(clusterdf, ignore_index=True)
-    dataframe = dataframe.dropna(subset=[columnName], axis=0)
+    dataframe = dataframe.dropna(subset=[columnName], axis=0).reset_index(drop=True)
     print('Loading embedding.')
     corpus_embeddings = torch.load(emdeddingspath)
     print('\tDone\nStarting mapping to lower dimensions.')
