@@ -20,11 +20,13 @@ funded by the Federal Ministry of Education and Research, Germany (Grant No. 01 
    :maxdepth: 3
    :caption: Contents:
 
+   readme
    cleaning
    pipelines
    linkage
    clustering
    visual
+   license
 
 
 
