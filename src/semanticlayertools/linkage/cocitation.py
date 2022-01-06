@@ -1,4 +1,3 @@
-"""Link documents by cocitation."""
 import os
 import time
 import re

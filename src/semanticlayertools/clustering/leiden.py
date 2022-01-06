@@ -1,24 +1,51 @@
 import os
 import time
 import re
-from typing import TypeVar
-
 from tqdm import tqdm
 
 import igraph as ig
 import leidenalg as la
 
-debugVar = TypeVar('debugVar', bool, str)
-
 
 class TimeCluster():
-    """Cluster time-sliced data with the Leiden algorithm."""
+    """Cluster time-sliced data with the Leiden algorithm.
+
+    Calculates temporal clusters of e.g. time-sliced cocitation or citation
+    data, using the Leiden algorithm . Two nodes are assumed to be identical in
+    different year slices, if the node name is the same.
+    This could be e.g. the bibcode or DOI.
+
+    Input files are assumed to include the year in the filename, have an ending
+    `_GC.net` to denote their giant component character and should be in Pajek
+    format.
+
+    The resolution parameter can be seen as a limiting density, above
+    which neighbouring nodes are considered a cluster. The interslice coupling
+    describes the influcence of yearly order on the clustering process. See doc
+    for the Leiden algorithm for more detailed info.
+
+    :param inpath: Path for input network data
+    :type inpath: str
+    :param outpath: Path for writing output data
+    :type outpath: str
+    :param resolution: Main parameter for the clustering quality function (Constant Pots Model)
+    :type resolution: float
+    :param intersliceCoupling: Coupling parameter between two year slices, also influences cluster detection
+    :type intersliceCoupling: float
+    :param timerange: The time range for considering input data (default=1945,2005))
+    :type timerange: tuple
+    :raises OSError: If the output file already exists at class instantiation
+
+    .. seealso::
+       Traag, V.A., Waltman. L., Van Eck, N.-J. (2018).
+       From Louvain to Leiden: guaranteeing well-connected communities.
+       Scientific reports, 9(1), 5233. 10.1038/s41598-019-41695-z
+    """
 
     def __init__(
         self, inpath: str, outpath: str,
         resolution: float = 0.003, intersliceCoupling: float = 0.4,
         timerange: tuple = (1945, 2005),
-        debug: debugVar = False
     ):
         starttime = time.time()
         self.inpath = inpath
@@ -26,7 +53,6 @@ class TimeCluster():
         self.res_param = resolution
         self.interslice_param = intersliceCoupling
         self.timerange = timerange
-        self.debug = debug
 
         self.outfile = os.path.join(
             outpath,
@@ -57,8 +83,28 @@ class TimeCluster():
             f"loaded in {time.time() - starttime} seconds."
         )
 
-    def optimize(self, clusterSizeCompare: int=1000):
-        """Optimize clusters accross time slices."""
+    def optimize(self, clusterSizeCompare: int = 1000):
+        """Optimize clusters accross time slices.
+
+        This runs the actual clustering and can be very time and memory
+        consuming for large networks. Depending on the obtained cluster results,
+        this method has to be run iteratively with varying resolution parameter.
+        Output is written to file, with filename containing chosen parameters.
+
+        The output CSV contains information on which node in which year belongs
+        to which cluster. As a first measure of returned clustering, the method
+        prints the number of clusters found above a threshold defined by
+        `clusterSizeCompare`. This does not influence the output clustering.
+
+        :param clusterSizeCompare: Threshold for `interesting` clusters
+        :type clusterSizeCompare: int
+        :returns: Tuple of output file path and list of found clusters in tuple format (node, year, cluster)
+        :rtype: tuple
+
+        .. seealso::
+           Documentation of time-layer creation routine:
+           `Leiden documentation <https://leidenalg.readthedocs.io/en/latest/multiplex.html#temporal-community-detection>`_
+        """
         starttime = time.time()
 
         layers, interslice_layer, _ = la.time_slices_to_layers(
@@ -109,7 +155,9 @@ class TimeCluster():
                 outfile.write(
                     f"{elem[0]},{elem[1]},{elem[2]}\n"
                 )
-        largeclu = [(x,len(x.vs)) for x in subgraphs if len(x.vs)>clusterSizeCompare]
+        largeclu = [
+            (x, len(x.vs)) for x in subgraphs if len(x.vs) > clusterSizeCompare
+        ]
         print(
             f'Finished in {time.time() - starttime} seconds.'
             f"Found {len(subgraphs)} clusters, with {len(largeclu)} larger then {clusterSizeCompare} nodes."
