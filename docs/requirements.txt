@@ -1,10 +1,4 @@
 sphinx
 sphinx_rtd_theme
 m2r2
-plotly
-hdbscan
-umap-learn
-torch
-sentence-transformers
-https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.2.0/en_core_web_lg-3.2.0.tar.gz#egg=en_core_web_lg
 semanticlayertools

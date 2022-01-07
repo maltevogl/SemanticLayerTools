@@ -6,10 +6,6 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 
-from collections import Counter
-import plotly.express as px
-import plotly.graph_objects as go
-
 from sentence_transformers import SentenceTransformer
 import umap
 import hdbscan
@@ -24,7 +20,10 @@ def gaussian_smooth(x, y, grid, sd):
     return (weights * y).sum(1)
 
 
-def streamgraph(filepath: str, smooth: smoothing=False, minClusterSize: int=1000, showNthGrid: int=5):
+def streamgraph(
+    filepath: str, smooth: smoothing = False,
+    minClusterSize: int = 1000, showNthGrid: int = 5
+):
     """Plot streamgraph of cluster sizes vs years.
 
     Based on https://www.python-graph-gallery.com/streamchart-basic-matplotlib
@@ -59,8 +58,8 @@ def streamgraph(filepath: str, smooth: smoothing=False, minClusterSize: int=1000
             grid,
             y_smoothed,
             labels=cluDict.keys(),
-            baseline="sym"
-            ,colors=plt.get_cmap('tab20').colors
+            baseline="sym",
+            colors=plt.get_cmap('tab20').colors
         )
 
         pass
@@ -86,7 +85,10 @@ def streamgraph(filepath: str, smooth: smoothing=False, minClusterSize: int=1000
     return fig
 
 
-def embeddedTextPlotting(infolderpath: str, columnName: str, outpath: str):
+def embeddedTextPlotting(
+    infolderpath: str, columnName: str, outpath: str,
+    umapNeighors: int = 200,
+):
     """Create embedding for corpus text."""
     print('Initializing embedder model.')
     model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -113,7 +115,7 @@ def embeddedTextPlotting(infolderpath: str, columnName: str, outpath: str):
     )
     print('\tDone\nStarting mapping to 2D.')
     corpus_embeddings_2D = umap.UMAP(
-        n_neighbors=15,
+        n_neighbors=umapNeighors,
         n_components=2,
         metric='cosine'
     ).fit_transform(corpus_embeddings)
@@ -130,7 +132,9 @@ def embeddedTextPlotting(infolderpath: str, columnName: str, outpath: str):
 
 
 def embeddedTextClustering(
-    infolderpath: str, columnName: str, emdeddingspath: str, outpath: str
+    infolderpath: str, columnName: str, emdeddingspath: str, outpath: str,
+    umapNeighors: int = 200, umapComponents: int = 50,
+    hdbscanMinCluster: int = 500,
 ):
     """Create clustering based on embedding for corpus texts."""
     print('Initializing embedder model.')
@@ -149,8 +153,9 @@ def embeddedTextClustering(
     corpus_embeddings = torch.load(emdeddingspath)
     print('\tDone\nStarting mapping to lower dimensions.')
     corpus_embeddings_50D = umap.UMAP(
-        n_neighbors=15,
-        n_components=50,
+        n_neighbors=umapNeighors,
+        n_components=umapComponents,
+        min_dist=0.0,
         metric='cosine'
     ).fit_transform(corpus_embeddings)
     np.savetxt(
@@ -161,7 +166,7 @@ def embeddedTextClustering(
     )
     print('\tDone.\nStarting clustering.')
     cluster = hdbscan.HDBSCAN(
-        min_cluster_size=20,
+        min_cluster_size=hdbscanMinCluster,
         metric='euclidean',
         cluster_selection_method='eom'
     ).fit(corpus_embeddings_50D)

@@ -13,9 +13,6 @@ import warnings
 
 num_processes = multiprocessing.cpu_count()
 
-mainLanguageCorp = 'en_core_web_lg'
-nlp = spacy.load(mainLanguageCorp)
-
 
 class ClusterReports():
     """Generate reporting on time-clusters.
@@ -96,6 +93,9 @@ class ClusterReports():
         :returns: A textacy corpus file with english as the base language
         :rtype: `textacy.Corpus`
         """
+        mainLanguageCorp = 'en_core_web_lg'
+        nlp = spacy.load(mainLanguageCorp)
+
         docs = []
         titles = [x[0] for x in dataframe[self.textcolumn].values if type(x) == list]
         for title in tqdm(titles, leave=False):
