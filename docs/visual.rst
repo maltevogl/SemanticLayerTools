@@ -55,4 +55,4 @@ HDBSCAN clustering. Reuses previously generated embedding of corpus.
    )
 
 .. seealso ::
-    `HDBSCAN docs <hdbscan.readthedocs.io>`_
+    `HDBSCAN docs <https://hdbscan.readthedocs.io>`_
