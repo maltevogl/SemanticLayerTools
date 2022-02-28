@@ -68,7 +68,7 @@ class TimeCluster():
         for idx in tqdm(range(len(edgefiles)), leave=False):
             try:
                 year = re.findall(r'\d{4}', edgefiles[idx])[0]
-            except:
+            except Exception:
                 raise
             if timerange[0] <= int(year) <= timerange[1]:
                 graph = ig.Graph.Read_Pajek(os.path.join(inpath, edgefiles[idx]))

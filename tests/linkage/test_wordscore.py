@@ -8,6 +8,7 @@ filePath = f'{basePath}/testdata/testdata.json'
 
 df = pd.read_json(filePath)
 
+
 class TestCalculateScores(unittest.TestCase):
 
     def setUp(self):

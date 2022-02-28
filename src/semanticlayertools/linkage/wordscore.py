@@ -93,7 +93,7 @@ class CalculateScores():
             lvalue = len(set(x for x in contains if x[1] == subgram))
             valueList.append((lvalue + 1) * (rvalue + 1))
         return {
-            target: 1/self.counts[target] * (np.prod(valueList)) ** (1 / (2.0 * len(target)))
+            target: 1 / self.counts[target] * (np.prod(valueList)) ** (1 / (2.0 * len(target)))
         }
 
     def _calcBatch(self, batch):
@@ -109,13 +109,13 @@ class CalculateScores():
         if self.debug is True:
             print(f'Found {len(self.uniqueNGrams)} unique {self.ngramEnd}-grams.')
         if limitCPUs is True:
-            ncores = int(cpu_count()*1/4)
+            ncores = int(cpu_count() * 1 / 4)
         else:
             ncores = cpu_count() - 2
         pool = Pool(ncores)
-        chunk_size = int(len(self.uniqueNGrams)/ncores)
+        chunk_size = int(len(self.uniqueNGrams) / ncores)
         batches = [
-            list(self.uniqueNGrams)[i:i+chunk_size] for i in range(0, len(self.uniqueNGrams), chunk_size)
+            list(self.uniqueNGrams)[i:i + chunk_size] for i in range(0, len(self.uniqueNGrams), chunk_size)
         ]
         ncoresResults = pool.map(self._calcBatch, batches)
         results = [x for y in ncoresResults for x in y]
@@ -133,7 +133,7 @@ class CalculateScores():
                     if recreate is False:
                         raise IOError(
                             f'File at {filePath} exists. Set recreate = True to rewrite file.'
-                            )
+                        )
                     if recreate is True:
                         os.remove(filePath)
                 with open(filePath, 'a') as yearfile:
@@ -241,7 +241,7 @@ class LinksOverTime():
             if recreate is False:
                 raise IOError(
                     f'File at {filePath} exists. Set recreate = True to rewrite file.'
-                    )
+                )
             if recreate is True:
                 os.remove(filePath)
 
@@ -274,21 +274,23 @@ class LinksOverTime():
                 if len(authors) >= 2:
                     # pairs = [x for x in combinations(authors, 2)]
                     for pair in combinations(authors, 2):  # pairs:
-                        file.write('{0} {1} {2} {3} 1\n'.format(
-                            1,
-                            self.nodeMap[pair[0]],
-                            1,
-                            self.nodeMap[pair[1]]
+                        file.write(
+                            '{0} {1} {2} {3} 1\n'.format(
+                                1,
+                                self.nodeMap[pair[0]],
+                                1,
+                                self.nodeMap[pair[1]]
                             )
                         )
                 for author in authors:
                     try:
                         authNr = self.nodeMap[author]
-                        file.write('{0} {1} {2} {3} 1\n'.format(
-                            1,
-                            authNr,
-                            2,
-                            paperNr
+                        file.write(
+                            '{0} {1} {2} {3} 1\n'.format(
+                                1,
+                                authNr,
+                                2,
+                                paperNr
                             )
                         )
                     except KeyError:
@@ -297,12 +299,13 @@ class LinksOverTime():
                     try:
                         ngramNr = self.nodeMap[ngramrow[1]]
                         weight = ngramrow[2]
-                        file.write('{0} {1} {2} {3} {4}\n'.format(
-                            2,
-                            paperNr,
-                            3,
-                            ngramNr,
-                            weight
+                        file.write(
+                            '{0} {1} {2} {3} {4}\n'.format(
+                                2,
+                                paperNr,
+                                3,
+                                ngramNr,
+                                weight
                             )
                         )
                     except KeyError:

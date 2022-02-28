@@ -102,7 +102,7 @@ class ClusterReports():
             try:
                 # text pre-processing
                 title = re.sub("\n", " ", title)
-                title = re.sub("[\r|\t|\x0c|\d+]", "", title)
+                title = re.sub("[\r|\t|\x0c|\d+]", "", title)  # noqa: W605
                 title = re.sub("[.,]", "", title)
                 title = re.sub("\\\'s", "'s", title)
                 title = title.lower()
@@ -112,7 +112,7 @@ class ClusterReports():
                 tokens_without_sw = ' '.join([t.lemma_ for t in doc if not t.is_stop])
 
                 docs.append(tokens_without_sw)
-            except:
+            except Exception:
                 print(title)
                 raise
 
@@ -269,7 +269,7 @@ Finished analysis of cluster {cluster} in {time.time()- starttime} seconds."""
         for x in filenames:
             try:
                 year = int(re.findall(r'\d{4}', x)[0])
-            except:
+            except Exception:
                 raise
             if self.timerange[0] <= year <= self.timerange[1]:
                 yearFiles.append(x)

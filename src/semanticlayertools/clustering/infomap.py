@@ -67,7 +67,7 @@ class Clustering():
             if self.recreate is False:
                 raise OSError(
                     f'Files at {cluFilePath} or {ftreeFilePath} exists. Set recreate = True to rewrite files.'
-                    )
+                )
             if self.recreate is True:
                 os.remove(cluFilePath)
                 os.remove(ftreeFilePath)

@@ -110,7 +110,7 @@ class Cocitations():
             tempG = ig.Graph.TupleList(sortCoCitCounts, weights=True, vertex_name_attr='id')
             components = tempG.components()
             sortedComponents = sorted(
-                [(x, len(x), len(x)*100/len(tempG.vs)) for x in components], key=lambda x: x[1], reverse=True
+                [(x, len(x), len(x) * 100 / len(tempG.vs)) for x in components], key=lambda x: x[1], reverse=True
             )
             with open(os.path.join(self.outpath, infilename + '_graphMetadata.txt'), 'w') as outfile:
                 outfile.write(f'Graph derived from {filepath}\nSummary:\n')
@@ -125,7 +125,7 @@ class Cocitations():
                             elem[1],
                             elem[2],
                             len(gcompTemp.es),
-                            len(gcompTemp.es)*100/len(tempG.es)
+                            len(gcompTemp.es) * 100 / len(tempG.es)
                         )
             giantComponent = sortedComponents[0]
             giantComponentGraph = tempG.vs.select(giantComponent[0]).subgraph()
@@ -135,7 +135,7 @@ class Cocitations():
             with open(os.path.join(self.outpath, infilename + '.ncol'), 'w') as outfile:
                 for edge in sortCoCitCounts:
                     outfile.write(f"{edge[0]} {edge[1]} {edge[2]}\n")
-        except:
+        except Exception:
             raise
         if self.debug == "l2":
             print(f'\tDone in {time.time() - starttime} seconds.')
@@ -153,7 +153,7 @@ class Cocitations():
             for file in tqdm(os.listdir(self.inpath), leave=False):
                 try:
                     year = re.findall(r'\d{4}', file)[0]
-                except:
+                except Exception:
                     raise
                 if self.timerange[0] <= int(year) <= self.timerange[1]:
                     try:
@@ -163,7 +163,7 @@ class Cocitations():
                         gcmetafile.write(
                             f'{year},{outtuple[0]},{outtuple[1]},{outtuple[2]},{outtuple[3]}\n'
                         )
-                    except:
+                    except Exception:
                         raise
         if self.debug is True:
             print(f'\tDone in {time.time() - starttime} seconds.')

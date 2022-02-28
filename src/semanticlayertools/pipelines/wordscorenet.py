@@ -1,4 +1,3 @@
-"""Runs all steps to create a multilayer network."""
 import tempfile
 from datetime import datetime
 import os
@@ -19,7 +18,34 @@ def run(
     ngramsize=5,
     scoreLimit=1.0
 ):
-    """Run all steps for multilayer network generation using wordscoring."""
+    """Run all steps for multilayer network generation using wordscoring.
+
+    Calculates word scoring for corpus documents, creates multilayer network
+    by linking co-authors, their publications and used ngrams and
+    calculates clusters for each timeslice using the infomap algorithm.
+
+    By default, temmporal folders are used such that only the found clusters
+    are returned.
+
+    For details of the ngram method refere to the module documentation.
+
+    :param dataframe: The input corpus dataframe.
+    :type dataframe: class:`pandas.DataFrame`
+    :param tempFiles: Use temporal files during the pipeline run.
+    :type tempFiles: bool
+    :param outpath: Path for writing resulting cluster data
+    :type outpath: str
+    :param textColumn: Column name to use for ngram calculation
+    :type textColumn: str
+    :param pubIDColumn: Column name to use for publication identification (assumend to be unique)
+    :type pubIDColumn: str
+    :param yearColumn: Column name for temporal ordering publications, used during writing the scoring files
+    :type yearColumn: str
+    :param ngramsize: Maximum of considered ngrams (default: 5-gram)
+    :type ngramsize: int
+    :param scoreLimit: Minimal weight in the full corpus to consider an ngram score (default: 1.0)
+    :type scoreLimit: float
+    """
 
     if tempFiles is True:
         basedir = tempfile.TemporaryDirectory().name
