@@ -190,7 +190,7 @@ class ClusterReports():
         dfCluster = pd.concat(clusterdf, ignore_index=True)
         basedf = self.clusternodes.query('cluster == @cluster')
         inputnodes = set(basedf.node.values)
-        notFound = inputnodes.difference(set(dfCluster.nodeID.values))
+        notFound = inputnodes.difference(set(dfCluster[self.publicationIDcolumn].values))
         topAuthors = Counter(
             [x for y in dfCluster[self.authorColumnName].fillna('').values for x in y]
         ).most_common(20)

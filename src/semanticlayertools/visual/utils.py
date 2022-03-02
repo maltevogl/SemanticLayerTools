@@ -6,10 +6,14 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 
-from sentence_transformers import SentenceTransformer
-import umap
-import hdbscan
-import torch
+try:
+    from sentence_transformers import SentenceTransformer
+    import umap
+    import hdbscan
+    import torch
+except ModuleNotFoundError as e:
+    print('Please install the dependencies for the visualization routines, using `pip install semanticlayertools[embeddml]`.')
+    raise e
 
 smoothing = TypeVar('smoothing', bool, float)
 
