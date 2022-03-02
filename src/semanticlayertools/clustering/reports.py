@@ -97,7 +97,7 @@ class ClusterReports():
         nlp = spacy.load(mainLanguageCorp)
 
         docs = []
-        titles = [x[0] for x in dataframe[self.textcolumn].values if type(x) == list]
+        titles = dataframe[self.textcolumn].values
         for title in tqdm(titles, leave=False):
             try:
                 # text pre-processing
