@@ -192,17 +192,19 @@ class ClusterReports():
         inputnodes = set(basedf.node.values)
         notFound = inputnodes.difference(set(dfCluster[self.publicationIDcolumn].values))
         topAuthors = Counter(
-            [x for y in dfCluster[self.authorColumnName].fillna('').values for x in y]
-        ).most_common(20)
+            [x for y in [x.split(';') for x in dfCluster[self.authorColumnName].fillna('').values] for x in y]
+        ).most_common(21)
         authortext = ''
         for x in topAuthors:
-            authortext += f'\t{x[0]}: {x[1]}\n'
+            if x[0] != '':
+                authortext += f'\t{x[0]}: {x[1]}\n'
         topAffils = Counter(
-            [x for y in dfCluster[self.affiliationColumnName].fillna('').values for x in y]
+            [x for y in [x.split(';') for x in dfCluster[self.affiliationColumnName].fillna('').values] for x in y]
         ).most_common(21)
         affiltext = ''
-        for x in topAffils[1:]:
-            affiltext += f'\t{x[0]}: {x[1]}\n'
+        for x in topAffils:
+            if x[0] != '':
+                affiltext += f'\t{x[0]}: {x[1]}\n'
         print(f'\tFinished base report for cluster {cluster}.')
         corpus = self.create_corpus(dfCluster)
         warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -281,5 +283,5 @@ Finished analysis of cluster {cluster} in {time.time()- starttime} seconds."""
         """Generate reports and write to output path."""
         for cluster in tqdm(self.largeClusterList, leave=False):
             outtext = self.fullReport(cluster)
-            with open(f'{self.outpath}Cluster_{cluster}.txt', 'w') as file:
+            with open(f'{self.outpath}/Cluster_{cluster}.txt', 'w') as file:
                 file.write(outtext)
