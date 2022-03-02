@@ -100,6 +100,8 @@ class Cocitations():
         try:
             data = pd.read_json(filepath, lines=True).dropna(subset=[self.columnName])
             chunk_size = int(data.shape[0] / self.numberProc)
+            if chunk_size == 0:  # Deal with small data samples.
+                chunk_size = 1
             chunks = np.array_split(data, chunk_size)
             pool = multiprocessing.Pool(processes=self.numberProc)
             cocitations = pool.map(self.getCombinations, chunks)
