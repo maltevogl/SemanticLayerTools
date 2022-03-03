@@ -36,7 +36,7 @@ the SentenceTransformer approach of SBERT and UMAP. Time consuming method!
 
 .. seealso ::
     `SBERT docs <https://www.sbert.net/index.html>`_
-    
+
     `UMAP docs <https://umap-learn.readthedocs.io/en/latest/index.html>`_
 
 
@@ -57,3 +57,17 @@ HDBSCAN clustering. Reuses previously generated embedding of corpus.
 
 .. seealso ::
     `HDBSCAN docs <https://hdbscan.readthedocs.io>`_
+
+
+Generate citation and reference tree graph
+******************************************
+
+Using the Dimensions AI dataset, this routine generates a structure
+starting from a source publications, that represents its references and their
+references as well as its citations and their citations. With this means,
+visualizations of it show academic roots and conduits and can display
+disciplinary pathways.
+
+.. automodule:: semanticlayertools.visual.generateCitationTree
+  :members:
+  :undoc-members:

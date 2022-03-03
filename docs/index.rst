@@ -26,6 +26,7 @@ funded by the Federal Ministry of Education and Research, Germany (Grant No. 01 
    linkage
    clustering
    visual
+   authors
    license
 
 

@@ -1,4 +1,4 @@
--e .
+-e .[embeddml]
 sphinx
 sphinx_rtd_theme
 m2r2
