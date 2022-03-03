@@ -52,7 +52,8 @@ class ClusterReports():
         authorColumnName: str = 'author',
         affiliationColumnName: str = 'aff',
         publicationIDcolumn: str = 'nodeID',
-        numberProc: int = num_processes, minClusterSize: int = 1000,
+        numberProc: int = num_processes,
+        minClusterSize: int = 1000,
         timerange: tuple = (1945, 2005)
     ):
         """Constructor method"""

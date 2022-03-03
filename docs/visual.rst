@@ -36,6 +36,7 @@ the SentenceTransformer approach of SBERT and UMAP. Time consuming method!
 
 .. seealso ::
     `SBERT docs <https://www.sbert.net/index.html>`_
+    
     `UMAP docs <https://umap-learn.readthedocs.io/en/latest/index.html>`_
 
 

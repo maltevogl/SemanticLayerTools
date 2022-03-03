@@ -44,8 +44,10 @@ class TimeCluster():
 
     def __init__(
         self, inpath: str, outpath: str,
-        resolution: float = 0.003, intersliceCoupling: float = 0.4,
+        resolution: float = 0.003,
+        intersliceCoupling: float = 0.4,
         timerange: tuple = (1945, 2005),
+        useGC: bool = True,
     ):
         starttime = time.time()
         self.inpath = inpath
@@ -61,7 +63,10 @@ class TimeCluster():
         if os.path.isfile(self.outfile):
             raise OSError(f'Output file at {self.outfile} exists. Aborting.')
 
-        edgefiles = [x for x in os.listdir(inpath) if x.endswith('_GC.net')]
+        if useGC is True:
+            edgefiles = [x for x in os.listdir(inpath) if x.endswith('_GC.net')]
+        elif useGC is False:
+            edgefiles = [x for x in os.listdir(inpath) if x.endswith('.ncol')]
 
         self.graphDict = {}
 
@@ -71,7 +76,10 @@ class TimeCluster():
             except Exception:
                 raise
             if timerange[0] <= int(year) <= timerange[1]:
-                graph = ig.Graph.Read_Pajek(os.path.join(inpath, edgefiles[idx]))
+                if useGC is True:
+                    graph = ig.Graph.Read_Pajek(os.path.join(inpath, edgefiles[idx]))
+                elif useGC is False:
+                    graph = ig.Graph.Read_Ncol(os.path.join(inpath, edgefiles[idx]))
                 self.graphDict[year] = graph
 
         self.optimiser = la.Optimiser()
