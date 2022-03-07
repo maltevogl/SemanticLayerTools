@@ -24,7 +24,7 @@ PubID = str
 FilePath = str
 
 
-class generate:
+class generateTree:
     """GenerateCitationNet makes citation/reference networks for a document.
 
     For a given input document, its references and citations are evaluated. In
@@ -310,7 +310,7 @@ class generate:
         Generate citation network for a publication using its DOI.
 
         :param doi: input DOI (string type alias)
-        :type doi: Doi
+        :type doi: Drunoi
         :param levels_ref: number of levels for references, defaults to 2
         :type levels_ref: int, optional
         :param levels_cite: number of levels for citing publications, defaults to 2
