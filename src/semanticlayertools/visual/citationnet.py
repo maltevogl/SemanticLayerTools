@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import time
+import re
+import os
 from collections import Counter
 from requests.exceptions import HTTPError
 
@@ -40,6 +42,19 @@ class GenerateTree:
             ":": "_colon_",
             r"\.": "_dot_"
         }
+
+    def _cleanTitleString(self, row):
+        """Clean non-JSON characters from titles.
+
+        Removes newline characters and double backslashes.
+        """
+        try:
+            title = row
+            for pair in [('\n', ' '), (r':?\\+', '')]:
+                title = re.sub(pair[0], pair[1], title)
+            return title
+        except Exception:
+            return 'Can not process title.'
 
     def _formatFOR(self, row):
         """Format existing FOR codes.
@@ -82,6 +97,9 @@ class GenerateTree:
             'is_input',
             outdf.source.apply(lambda x: x == self.pubids)
         )
+        cleantitle = outdf.title.apply(lambda row: self._cleanTitleString(row))
+        outdf.drop('title', axis=1, inplace=True)
+        outdf.insert(0, 'title', cleantitle)
         return outdf[retCols]
 
     def _getMissing(self, idlist):
@@ -190,7 +208,7 @@ class GenerateTree:
     def returnLinks(self):
         return pd.concat(self.dataframeList)
 
-    def generateNetworkFiles(self, outpath):
+    def generateNetworkFiles(self, outfolder):
         starttime = time.time()
         outformat = {'nodes': [], 'edges': []}
         dflinks = pd.concat(self.dataframeList)
@@ -208,7 +226,7 @@ class GenerateTree:
                     'id': row['source'],
                     'attributes':
                         {
-                            "title": row["title"],
+                            "title": row['title'],
                             "doi": row["doi"],
                             "nodeyear": row["year"],
                             "ref-by-count": row["times_cited"],
@@ -230,6 +248,11 @@ class GenerateTree:
                         }
                 }
             )
-        with open(outpath, 'w') as outfile:
-            json.dump(outformat, outfile, indent=4)
+        doiname = self.startDoi
+        for key, val in self.stringClean.items():
+            doiname = re.sub(key, val, doiname)
+
+        outfile = os.path.join(outfolder, doiname + '.json')
+        with open(outfile, 'w', encoding="utf8") as ofile:
+            json.dump(outformat, ofile, ensure_ascii=False)
         return f'Finished querying extra metadata in {time.time() - starttime} seconds.'
