@@ -50,7 +50,7 @@ class GenerateTree:
         """
         try:
             title = row
-            for pair in [('\n', ' '), (r':?\\+', '')]:
+            for pair in [('\n', ' '), (r':?\\+', ''), ('"', '')]:
                 title = re.sub(pair[0], pair[1], title)
             return title
         except Exception:
@@ -136,8 +136,11 @@ class GenerateTree:
         retDF.insert(0, 'forcodes', formatedFOR)
         retDF.drop(['category_for'], axis=1, inplace=True)
         retDF.rename(columns={'id': 'source'}, inplace=True)
-        retDF.insert(0, 'level', 'ref_l2')
+        retDF.insert(0, 'level', 'ref_l3')
         retDF.insert(0, 'is_input', False)
+        cleantitle = retDF.title.apply(lambda row: self._cleanTitleString(row))
+        retDF.drop('title', axis=1, inplace=True)
+        retDF.insert(0, 'title', cleantitle)
         return retDF[retCols]
 
     def query(self, startDoi=''):
@@ -220,7 +223,7 @@ class GenerateTree:
                 self._getMissing(trgNodes)
             ]
         )
-        for idx, row in nodeMetadata.iterrows():
+        for idx, row in nodeMetadata.fillna('').iterrows():
             outformat['nodes'].append(
                 {
                     'id': row['source'],
@@ -236,7 +239,7 @@ class GenerateTree:
                         }
                 }
             )
-        for idx, row in dflinks.iterrows():
+        for idx, row in dflinks.fillna('').iterrows():
             outformat['edges'].append(
                 {
                     'source': row['source'],
@@ -254,5 +257,5 @@ class GenerateTree:
 
         outfile = os.path.join(outfolder, doiname + '.json')
         with open(outfile, 'w', encoding="utf8") as ofile:
-            json.dump(outformat, ofile, ensure_ascii=False)
+            json.dump(outformat, ofile, indent=4, ensure_ascii=True)
         return f'Finished querying extra metadata in {time.time() - starttime} seconds.'
