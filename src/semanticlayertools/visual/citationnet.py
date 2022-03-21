@@ -263,7 +263,7 @@ class GenerateTree:
             doiname = re.sub(key, val, doiname)
             firstauthor = re.sub(key, val, firstauthor)
 
-        outfile = os.path.join(outfolder, firstauthor + '_' + doiname + '.json')
+        outfile = os.path.join(outfolder, f'{firstauthor}_{doiname}.json')
         with open(outfile, 'w', encoding="utf8") as ofile:
             json.dump(outformat, ofile, ensure_ascii=True)
-        return f'Finished querying extra metadata in {time.time() - starttime} seconds.'
+        return {time.time() - starttime}, f'{firstauthor}_{doiname}.json'
