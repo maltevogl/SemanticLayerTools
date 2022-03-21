@@ -33,6 +33,7 @@ class GenerateTree:
         self.dsl: dimcli.Dsl = dimcli.Dsl()
         self._verbose = verbose
         self.startDoi: str = ""
+        self.firstAuthor: str = "NoAuthor"
         self.citationLimit: int = 100
         self.dataframeList = []
 
@@ -145,6 +146,7 @@ class GenerateTree:
 
     def query(self, startDoi=''):
         self.startDoi = startDoi
+        self.dataframeList = []
         starttime = time.time()
         doi2id = self.dsl.query(
             f"""search
@@ -152,11 +154,15 @@ class GenerateTree:
                 where
                   doi = "{startDoi}" and times_cited <= {self.citationLimit}
                 return
-                  publications[id+doi+times_cited+category_for+title+year+reference_ids]
+                  publications[id+authors+doi+times_cited+category_for+title+year+reference_ids]
             """,
             verbose=self._verbose
         )
         querydf = doi2id.as_dataframe()
+        try:
+            self.firstAuthor = doi2id.as_dataframe_authors().last_name.iloc[0]
+        except Exception:
+            raise
         if querydf.shape[0] > 0:
             self.pubids = querydf['id'].values[0]
             self.pubrefs = list(
@@ -252,10 +258,12 @@ class GenerateTree:
                 }
             )
         doiname = self.startDoi
+        firstauthor = self.firstAuthor
         for key, val in self.stringClean.items():
             doiname = re.sub(key, val, doiname)
+            firstauthor = re.sub(key, val, firstauthor)
 
-        outfile = os.path.join(outfolder, doiname + '.json')
+        outfile = os.path.join(outfolder, firstauthor + '_' + doiname + '.json')
         with open(outfile, 'w', encoding="utf8") as ofile:
-            json.dump(outformat, ofile, indent=4, ensure_ascii=True)
+            json.dump(outformat, ofile, ensure_ascii=True)
         return f'Finished querying extra metadata in {time.time() - starttime} seconds.'
