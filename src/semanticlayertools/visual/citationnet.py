@@ -144,8 +144,9 @@ class GenerateTree:
         retDF.insert(0, 'title', cleantitle)
         return retDF[retCols]
 
-    def query(self, startDoi=''):
+    def query(self, startDoi='', citationLimit=100):
         self.startDoi = startDoi
+        self.citationLimit = citationLimit
         self.dataframeList = []
         starttime = time.time()
         doi2id = self.dsl.query(
