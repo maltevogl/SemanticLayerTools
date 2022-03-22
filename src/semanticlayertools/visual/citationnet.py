@@ -268,4 +268,4 @@ class GenerateTree:
         outfile = os.path.join(outfolder, f'{firstauthor}_{doiname}.json')
         with open(outfile, 'w', encoding="utf8") as ofile:
             json.dump(outformat, ofile, ensure_ascii=True)
-        return {time.time() - starttime}, f'{firstauthor}_{doiname}.json'
+        return time.time() - starttime, f'{firstauthor}_{doiname}.json'
