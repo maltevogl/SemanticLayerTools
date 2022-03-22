@@ -212,7 +212,7 @@ class GenerateTree:
             print(f'Finished queries in {time.time() - starttime} seconds.')
             return self
         else:
-            print('The requested DOI is either cited to often or not available in the dataset.')
+            return f'The requested DOI {startDoi} is either cited to often or not available in the dataset.'
 
     def returnLinks(self):
         return pd.concat(self.dataframeList)
