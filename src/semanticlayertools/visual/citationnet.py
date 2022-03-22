@@ -160,9 +160,9 @@ class GenerateTree:
         )
         querydf = doi2id.as_dataframe()
         try:
-            self.firstAuthor = doi2id.as_dataframe_authors().last_name.iloc[0]
-        except Exception:
-            raise
+            self.firstAuthor = doi2id.as_dataframe_authors()['last_name'].iloc[0]
+        except KeyError:
+            pass
         if querydf.shape[0] > 0:
             self.pubids = querydf['id'].values[0]
             self.pubrefs = list(
@@ -212,7 +212,7 @@ class GenerateTree:
             print(f'Finished queries in {time.time() - starttime} seconds.')
             return self
         else:
-            print('The requested DOI is cited to often.')
+            print('The requested DOI is either cited to often or not available in the dataset.')
 
     def returnLinks(self):
         return pd.concat(self.dataframeList)
