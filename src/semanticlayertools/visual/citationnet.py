@@ -153,67 +153,68 @@ class GenerateTree:
             f"""search
                   publications
                 where
-                  doi = "{startDoi}" and times_cited <= {self.citationLimit}
+                  doi = "{startDoi}"
                 return
                   publications[id+authors+doi+times_cited+category_for+title+year+reference_ids]
             """,
             verbose=self._verbose
         )
         querydf = doi2id.as_dataframe()
+        if querydf.shape[0] == 0:
+            return f"The dataset contains no entry for {startDoi}."
+        elif querydf['times_cited'].iloc[0] >= self.citationLimit:
+            return f"{startDoi} is cited {querydf['times_cited'].iloc[0]} times. You can try to change the limit, if possible."
         try:
             self.firstAuthor = doi2id.as_dataframe_authors()['last_name'].iloc[0]
         except KeyError:
             pass
-        if querydf.shape[0] > 0:
-            self.pubids = querydf['id'].values[0]
-            self.pubrefs = list(
-                [x for y in querydf['reference_ids'].values for x in y]
-            )
-            self.dataframeList.append(
-                self._editDF(querydf, dftype="ref_l1")
-            )
-            ref1trgtList = list(self.dataframeList[0].target.values)
-            cit1df = self.dsl.query_iterative(
-                f"""search
-                      publications
-                    where
-                      reference_ids = "{self.pubids}"
-                    return
-                      publications[id+doi+times_cited+category_for+title+year+reference_ids]
-                """,
-                verbose=self._verbose)
-            self.dataframeList.append(
-                self._editDF(cit1df.as_dataframe(), dftype='cite_l1')
-            )
-            cit1SrcList = list(self.dataframeList[1].source.values)
-            cit2df = self.dsl.query_iterative(
-                f"""search
-                      publications
-                    where
-                      reference_ids in {json.dumps(cit1SrcList)}
-                    return
-                      publications[id+doi+times_cited+category_for+title+year+reference_ids]""",
-                verbose=self._verbose
-            )
-            self.dataframeList.append(
-                self._editDF(cit2df.as_dataframe(), dftype='cite_l2', level2List=cit1SrcList)
-            )
-            ref2df = self.dsl.query_iterative(
-                f"""search
-                      publications
-                    where
-                      id in {json.dumps(ref1trgtList)}
-                    return
-                      publications[id+doi+times_cited+category_for+title+year+reference_ids]""",
-                verbose=self._verbose
-            )
-            self.dataframeList.append(
-                self._editDF(ref2df.as_dataframe(), dftype='ref_l2')
-            )
-            print(f'Finished queries in {time.time() - starttime} seconds.')
-            return self
-        else:
-            return f'The requested DOI {startDoi} is either cited to often or not available in the dataset.'
+        self.pubids = querydf['id'].values[0]
+        self.pubrefs = list(
+            [x for y in querydf['reference_ids'].values for x in y]
+        )
+        self.dataframeList.append(
+            self._editDF(querydf, dftype="ref_l1")
+        )
+        ref1trgtList = list(self.dataframeList[0].target.values)
+        cit1df = self.dsl.query_iterative(
+            f"""search
+                  publications
+                where
+                  reference_ids = "{self.pubids}"
+                return
+                  publications[id+doi+times_cited+category_for+title+year+reference_ids]
+            """,
+            verbose=self._verbose)
+        self.dataframeList.append(
+            self._editDF(cit1df.as_dataframe(), dftype='cite_l1')
+        )
+        cit1SrcList = list(self.dataframeList[1].source.values)
+        cit2df = self.dsl.query_iterative(
+            f"""search
+                  publications
+                where
+                  reference_ids in {json.dumps(cit1SrcList)}
+                return
+                  publications[id+doi+times_cited+category_for+title+year+reference_ids]""",
+            verbose=self._verbose
+        )
+        self.dataframeList.append(
+            self._editDF(cit2df.as_dataframe(), dftype='cite_l2', level2List=cit1SrcList)
+        )
+        ref2df = self.dsl.query_iterative(
+            f"""search
+                  publications
+                where
+                  id in {json.dumps(ref1trgtList)}
+                return
+                  publications[id+doi+times_cited+category_for+title+year+reference_ids]""",
+            verbose=self._verbose
+        )
+        self.dataframeList.append(
+            self._editDF(ref2df.as_dataframe(), dftype='ref_l2')
+        )
+        print(f'Finished queries in {time.time() - starttime} seconds.')
+        return self
 
     def returnLinks(self):
         return pd.concat(self.dataframeList)
