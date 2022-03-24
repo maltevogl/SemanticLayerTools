@@ -68,6 +68,7 @@ references as well as its citations and their citations. With this means,
 visualizations of it show academic roots and conduits and can display
 disciplinary pathways.
 
-.. automodule:: semanticlayertools.visual.generateCitationTree
+.. automodule:: semanticlayertools.visual.citationnet
   :members:
+  :private-members:
   :undoc-members:

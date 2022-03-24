@@ -47,7 +47,7 @@ class GenerateTree:
     def _cleanTitleString(self, row):
         """Clean non-JSON characters from titles.
 
-        Removes newline characters and double backslashes.
+        Removes newline characters, double backslashes and quoted '"'.
         """
         try:
             title = row
@@ -217,9 +217,11 @@ class GenerateTree:
         return self
 
     def returnLinks(self):
+        """Return all links as dataframe."""
         return pd.concat(self.dataframeList)
 
     def generateNetworkFiles(self, outfolder):
+        """Generates JSON with nodes and edges lists."""
         starttime = time.time()
         outformat = {'nodes': [], 'edges': []}
         dflinks = pd.concat(self.dataframeList)
