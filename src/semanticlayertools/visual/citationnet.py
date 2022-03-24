@@ -24,11 +24,8 @@ class GenerateTree:
         while not dimcli.login_status():
             try:
                 dimcli.login(key=api_key)
-            except HTTPError as e:
-                if e.response.status_code == 401:
-                    raise
-                time.sleep(5)
-                pass
+            except HTTPError:
+                raise
 
         self.dsl: dimcli.Dsl = dimcli.Dsl()
         self._verbose = verbose
