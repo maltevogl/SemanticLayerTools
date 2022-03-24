@@ -163,15 +163,19 @@ class GenerateTree:
         if querydf.shape[0] == 0:
             return f"The dataset contains no entry for {startDoi}."
         elif querydf['times_cited'].iloc[0] >= self.citationLimit:
-            return f"{startDoi} is cited {querydf['times_cited'].iloc[0]} times. You can try to change the limit, if possible."
+            return f"{startDoi} is cited {querydf['times_cited'].iloc[0]} times.\
+            You can try to change the limit, if possible."
         try:
             self.firstAuthor = doi2id.as_dataframe_authors()['last_name'].iloc[0]
         except KeyError:
             pass
         self.pubids = querydf['id'].values[0]
-        self.pubrefs = list(
-            [x for y in querydf['reference_ids'].values for x in y]
-        )
+        try:
+            self.pubrefs = list(
+                [x for y in querydf['reference_ids'].values for x in y]
+            )
+        except KeyError:
+            return f"{startDoi} has no references listed."
         self.dataframeList.append(
             self._editDF(querydf, dftype="ref_l1")
         )
