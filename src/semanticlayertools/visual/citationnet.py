@@ -233,6 +233,8 @@ class GenerateTree:
                 self._getMissing(trgNodes)
             ]
         )
+        nodedata = nodeMetadata.source.unique()
+        dflinks = dflinks.query('~target.isin(@nodedata) or ~source.isin(@nodedata)')
         for idx, row in nodeMetadata.fillna('').iterrows():
             outformat['nodes'].append(
                 {
