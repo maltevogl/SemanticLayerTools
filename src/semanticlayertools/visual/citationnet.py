@@ -21,10 +21,11 @@ class GenerateTree:
 
     def __init__(self, verbose: bool = False, api_key=""):
         """Init module."""
+
         try:
-            dimcli.login(key=api_key)
-        except Exception:
-            raise
+            self.status = dimcli.login(key=api_key)
+        except:
+            self.status = 'Error'
 
         self.dsl: dimcli.Dsl = dimcli.Dsl()
         self._verbose = verbose
