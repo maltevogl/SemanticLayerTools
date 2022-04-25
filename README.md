@@ -52,5 +52,5 @@ The development is part of the research project [ModelSEN](https://modelsen.mpiw
 
 > Socio-epistemic networks: Modelling Historical Knowledge Processes,
 
-in Department I of the Max Planck Institute for the History of Science 
+in Department I of the Max Planck Institute for the History of Science
 and funded by the Federal Ministry of Education and Research, Germany (Grant No. 01 UG2131).
