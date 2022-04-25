@@ -69,7 +69,7 @@ class GenerateTree:
                 ).most_common()]
             )
         except TypeError:
-            forcodes = '00:1'
+            forcodes = '00:1.00'
         return forcodes
 
     def _editDF(self, inputdf, dftype='cite_l1', level2List=None):
