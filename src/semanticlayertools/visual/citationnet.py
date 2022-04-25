@@ -7,7 +7,6 @@ import time
 import re
 import os
 from collections import Counter
-from requests.exceptions import HTTPError
 
 
 class GenerateTree:
@@ -235,7 +234,7 @@ class GenerateTree:
             ]
         )
         nodedata = nodeMetadata.source.unique()
-        dflinks = dflinks.query('~target.isin(@nodedata) or ~source.isin(@nodedata)')
+        # dflinks = dflinks.query('~target.isin(@nodedata) or ~source.isin(@nodedata)')
         for idx, row in nodeMetadata.fillna('').iterrows():
             outformat['nodes'].append(
                 {
@@ -253,17 +252,18 @@ class GenerateTree:
                 }
             )
         for idx, row in dflinks.fillna('').iterrows():
-            outformat['edges'].append(
-                {
-                    'source': row['source'],
-                    'target': row['target'],
-                    'attributes':
-                        {
-                            'year': row['year'],
-                            'level': row['level']
-                        }
-                }
-            )
+            if row['source'] in nodedata and row['target'] in nodedata:
+                outformat['edges'].append(
+                    {
+                        'source': row['source'],
+                        'target': row['target'],
+                        'attributes':
+                            {
+                                'year': row['year'],
+                                'level': row['level']
+                            }
+                    }
+                )
         doiname = self.startDoi
         firstauthor = self.firstAuthor
         for key, val in self.stringClean.items():
