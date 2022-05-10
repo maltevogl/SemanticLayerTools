@@ -92,9 +92,17 @@ class CalculateScores():
             rvalue = len(set(x for x in contains if x[0] == subgram))
             lvalue = len(set(x for x in contains if x[1] == subgram))
             valueList.append((lvalue + 1) * (rvalue + 1))
-        return {
-            target: 1 / self.counts[target] * (np.prod(valueList)) ** (1 / (2.0 * len(target)))
-        }
+        factors = np.prod(valueList)
+        # FIX: Capture invalid power warning, should only occure for negative products...
+        if factors > 0:
+            return {
+                target: 1 / self.counts[target] * (factors) ** (1 / (2.0 * len(target)))
+            }
+        else:
+            print(target)
+            return {
+                target: 1.0
+            }
 
     def _calcBatch(self, batch):
         res = []
