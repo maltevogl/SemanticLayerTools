@@ -99,9 +99,9 @@ class CalculateScores():
                 target: 1 / self.counts[target] * (factors) ** (1 / (2.0 * len(target)))
             }
         else:
-            print(target)
+            print(target, self.counts[target], factors)
             return {
-                target: 1.0
+                target: 0.0
             }
 
     def _calcBatch(self, batch):
