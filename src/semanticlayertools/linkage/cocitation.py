@@ -138,6 +138,7 @@ class Cocitations():
                 for edge in sortCoCitCounts:
                     outfile.write(f"{edge[0]} {edge[1]} {edge[2]}\n")
         except Exception:
+            print(filepath)
             raise
         if self.debug == "l2":
             print(f'\tDone in {time.time() - starttime} seconds.')
