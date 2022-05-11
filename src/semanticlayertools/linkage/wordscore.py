@@ -66,12 +66,11 @@ class CalculateScores():
         self.outputDict = {}
         self.counts = {}
         self.corpussize = 1
-        self.uniqueNGrams = ()
         self.debug = debug
 
-    def getTermPatterns(self, tokenMinLength=2):
+    def getTermPatterns(self, tokenMinLength=2, ngramMinsize=2):
         """Create dictionaries of occuring ngrams."""
-        allNGrams = {x: [] for x in range(1, self.ngramEnd + 1, 1)}
+        allNGrams = {x: [] for x in range(ngramMinsize, self.ngramEnd + 1, 1)}
         pos_tag = ["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"]
         for _, row in tqdm(self.baseDF.iterrows()):
             tokens = nltk.word_tokenize(row[self.textCol])
@@ -80,7 +79,7 @@ class CalculateScores():
                 x[0].lower() for x in pos if x[1] in pos_tag and len(x[0]) > tokenMinLength
             ]
             tempNGram = []
-            for i in range(1, self.ngramEnd + 1, 1):
+            for i in range(ngramMinsize, self.ngramEnd + 1, 1):
                 val = allNGrams[i]
                 newngrams = list(nltk.ngrams(nnJJtokens, i))
                 val.extend(newngrams)
@@ -89,11 +88,8 @@ class CalculateScores():
             self.outputDict[row[self.pubIDCol]] = tempNGram
         allgrams = [x for y in [y for x, y in allNGrams.items()] for x in y]
         self.corpussize = len(allgrams)
-        uniquegrams = []
         for key, value in allNGrams.items():
             self.counts[key] = dict(Counter(value))
-            uniquegrams.extend(value)
-        self.uniqueNGrams = uniquegrams
 
     def getScore(self, target):
         """Calculate ngram score."""
@@ -120,8 +116,10 @@ class CalculateScores():
             res.append(self.getScore(elem))
         return res
 
-    def run(self, write=False, outpath='./', recreate=False, tokenMinLength=2, limitCPUs=True):
+    def run(self, write=False, outpath='./', recreate=False, ngramMinsize=2, tokenMinLength=2, limitCPUs=True):
         """Get score for all documents."""
+        if ngramMinsize > 2:
+            raise ValueError('The minimal ngram size has to be either 1 or 2!')
         scores = {}
         if write is True:
             for year, df in self.baseDF.groupby(self.yearCol):
@@ -132,18 +130,21 @@ class CalculateScores():
                             f'File at {filePath} exists. Set recreate = True to overwrite.'
                         )
         print("Creating ngram counts...")
-        self.getTermPatterns(tokenMinLength=tokenMinLength)
+        self.getTermPatterns(ngramMinsize=ngramMinsize, tokenMinLength=tokenMinLength)
+        uniqueNGrams = []
+        for key, value in self.counts():
+            uniqueNGrams.extend(list(value.keys()))
         if self.debug is True:
-            print(f'Found {len(self.uniqueNGrams)} unique {self.ngramEnd}-grams.')
+            print(f'Found {len(uniqueNGrams)} unique {ngramMinsize} to {self.ngramEnd}-grams.')
         if limitCPUs is True:
             ncores = int(cpu_count() * 1 / 4)
         else:
             ncores = cpu_count() - 2
         print('Starting calculation of scores...')
         pool = Pool(ncores)
-        chunk_size = int(len(self.uniqueNGrams) / ncores)
+        chunk_size = int(len(uniqueNGrams) / ncores)
         batches = [
-            list(self.uniqueNGrams)[i:i + chunk_size] for i in range(0, len(self.uniqueNGrams), chunk_size)
+            list(uniqueNGrams)[i:i + chunk_size] for i in range(0, len(uniqueNGrams), chunk_size)
         ]
         ncoresResults = pool.map(self._calcBatch, batches)
         results = [x for y in ncoresResults for x in y]
