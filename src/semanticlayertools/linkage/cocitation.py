@@ -137,9 +137,9 @@ class Cocitations():
             with open(os.path.join(self.outpath, infilename + '.ncol'), 'w') as outfile:
                 for edge in sortCoCitCounts:
                     outfile.write(f"{edge[0]} {edge[1]} {edge[2]}\n")
-        except Exception:
+        except IndexError:
             print(filepath)
-            raise
+            return (0,0,0,0)
         if self.debug == "l2":
             print(f'\tDone in {time.time() - starttime} seconds.')
         return gcouttuple
