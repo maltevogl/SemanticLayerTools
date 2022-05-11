@@ -132,8 +132,9 @@ class CalculateScores():
         print("Creating ngram counts...")
         self.getTermPatterns(ngramMinsize=ngramMinsize, tokenMinLength=tokenMinLength)
         uniqueNGrams = []
-        for key, value in self.counts:
-            uniqueNGrams.extend(list(value.keys()))
+        uni = []
+        for key in self.counts.keys():
+            uniqueNGrams.extend(self.counts[key])
         if self.debug is True:
             print(f'Found {len(uniqueNGrams)} unique {ngramMinsize} to {self.ngramEnd}-grams.')
         if limitCPUs is True:
