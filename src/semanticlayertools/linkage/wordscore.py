@@ -62,14 +62,16 @@ class CalculateScores():
         self.uniqueNGrams = ()
         self.debug = debug
 
-    def getTermPatterns(self):
+    def getTermPatterns(self, tokenMinLength=2):
         """Create dictionaries of occuring ngrams."""
         allNGrams = {x: [] for x in range(1, self.ngramEnd + 1, 1)}
         pos_tag = ["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"]
         for _, row in tqdm(self.baseDF.iterrows()):
             tokens = nltk.word_tokenize(row[self.textCol])
             pos = nltk.pos_tag(tokens)
-            nnJJtokens = [x[0].lower() for x in pos if x[1] in pos_tag]
+            nnJJtokens = [
+                x[0].lower() for x in pos if x[1] in pos_tag and len(x[0]) > tokenMinLength
+            ]
             tempNGram = []
             for i in range(1, self.ngramEnd + 1, 1):
                 val = allNGrams[i]
@@ -81,28 +83,28 @@ class CalculateScores():
         self.allNGrams = allNGrams
         allgrams = [x for y in [y for x, y in self.allNGrams.items()] for x in y]
         self.corpussize = len(allgrams)
-        self.counts = Counter(allgrams)
+        for key, value in self.allNGrams.items():
+            self.counts[key] = dict(Counter(value))
         self.uniqueNGrams = set(allgrams)
 
     def getScore(self, target):
         """Calculate ngram score."""
         valueList = []
         for _, subgram in enumerate(target):
-            contains = [x for x in self.allNGrams[2] if subgram in x]
+            contains = [x for x in self.counts[2].keys() if subgram in x]
             rvalue = len(set(x for x in contains if x[0] == subgram))
             lvalue = len(set(x for x in contains if x[1] == subgram))
-            valueList.append((lvalue + 1) * (rvalue + 1))
-        factors = np.prod(valueList)
+            valueList.append((lvalue + 1.0) * (rvalue + 1.0))
+        factors = np.prod(valueList, dtype=np.float64)
         # FIX: Capture invalid power warning, should only occure for negative products...
         if factors > 0:
             return {
-                target: 1 / self.counts[target] * (factors) ** (1 / (2.0 * len(target)))
+                target: 1.0 / self.counts[len(target)][target] * (factors) ** (1.0 / (2.0 * len(target)))
             }
-        else:
-            print(target, self.counts[target], factors)
-            return {
-                target: 0.0
-            }
+        print(target, self.counts[target], factors)
+        return {
+            target: 0.0
+        }
 
     def _calcBatch(self, batch):
         res = []
@@ -160,9 +162,9 @@ class LinksOverTime():
 
     :param dataframe: Source dataframe containing metadata of texts (authors, publicationID and year)
     :type dataframe: class:`pandas.DataFrame`
-    :param authorColumn: Column name for author information
+    :param authorColumn: Column name for author information, author names are assumed to be separated by semikolon
     :param pubIDColumn: Column name to identify publications
-    :param yearColumn: Column name with year information
+    :param yearColumn: Column name with year information (year as integer)
     """
 
     def __init__(
