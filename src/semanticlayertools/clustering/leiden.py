@@ -34,6 +34,8 @@ class TimeCluster():
     :type intersliceCoupling: float
     :param timerange: The time range for considering input data (default=1945,2005))
     :type timerange: tuple
+    :param useGC: If True use giant component for input data (format Pajek), if False use full network data in NCOL format.
+    :type useGC: bool
     :raises OSError: If the output file already exists at class instantiation
 
     .. seealso::

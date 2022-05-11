@@ -22,7 +22,7 @@ class CalculateScores():
         - Adjectives: 'JJ', 'JJR', 'JJS'
 
     All texts of the corpus are tokenized and POS tags are generated.
-    A global dictionary of counts of different ngrams is build in `allNGrams`.
+    A global dictionary of counts of different ngrams is build in `counts`.
     The ngram relations of every text are listed in `outputDict`.
 
     Scoring counts occurance of different words left and right of each single
@@ -38,6 +38,14 @@ class CalculateScores():
     :type yearColumn: str
     :param ngramsize: Maximum of considered ngrams (default: 5-gram)
     :type ngramsize: int
+
+    .. seealso::
+        Abe H., Tsumoto S. (2011).
+        Evaluating a Temporal Pattern Detection Method for Finding Research Keys in Bibliographical Data.
+        In: Peters J.F. et al. (eds) Transactions on Rough Sets XIV. Lecture Notes in Computer Science, vol 6600.
+        Springer, Berlin, Heidelberg. 10.1007/978-3-642-21563-6_1
+
+
     """
 
     def __init__(
@@ -56,7 +64,6 @@ class CalculateScores():
         self.yearCol = yearColumn
         self.ngramEnd = ngramsize
         self.outputDict = {}
-        self.allNGrams = []
         self.counts = {}
         self.corpussize = 1
         self.uniqueNGrams = ()
@@ -80,12 +87,13 @@ class CalculateScores():
                 tempNGram.extend(newngrams)
                 allNGrams.update({i: val})
             self.outputDict[row[self.pubIDCol]] = tempNGram
-        self.allNGrams = allNGrams
-        allgrams = [x for y in [y for x, y in self.allNGrams.items()] for x in y]
+        allgrams = [x for y in [y for x, y in allNGrams.items()] for x in y]
         self.corpussize = len(allgrams)
-        for key, value in self.allNGrams.items():
+        uniquegrams = []
+        for key, value in allNGrams.items():
             self.counts[key] = dict(Counter(value))
-        self.uniqueNGrams = set(allgrams)
+            uniquegrams.extend(value)
+        self.uniqueNGrams = uniquegrams
 
     def getScore(self, target):
         """Calculate ngram score."""
@@ -112,16 +120,26 @@ class CalculateScores():
             res.append(self.getScore(elem))
         return res
 
-    def run(self, write=False, outpath='./', recreate=False, limitCPUs=True):
+    def run(self, write=False, outpath='./', recreate=False, tokenMinLength=2, limitCPUs=True):
         """Get score for all documents."""
         scores = {}
-        self.getTermPatterns()
+        if write is True:
+            for year, df in self.baseDF.groupby(self.yearCol):
+                filePath = f'{outpath}{str(year)}.tsv'
+                if os.path.isfile(filePath):
+                    if recreate is False:
+                        raise IOError(
+                            f'File at {filePath} exists. Set recreate = True to overwrite.'
+                        )
+        print("Creating ngram counts...")
+        self.getTermPatterns(tokenMinLength=tokenMinLength)
         if self.debug is True:
             print(f'Found {len(self.uniqueNGrams)} unique {self.ngramEnd}-grams.')
         if limitCPUs is True:
             ncores = int(cpu_count() * 1 / 4)
         else:
             ncores = cpu_count() - 2
+        print('Starting calculation of scores...')
         pool = Pool(ncores)
         chunk_size = int(len(self.uniqueNGrams) / ncores)
         batches = [
@@ -139,17 +157,13 @@ class CalculateScores():
         if write is True:
             for year, df in self.baseDF.groupby(self.yearCol):
                 filePath = f'{outpath}{str(year)}.tsv'
-                if os.path.isfile(filePath):
-                    if recreate is False:
-                        raise IOError(
-                            f'File at {filePath} exists. Set recreate = True to rewrite file.'
-                        )
-                    if recreate is True:
-                        os.remove(filePath)
+                if recreate is True:
+                    os.remove(filePath)
                 with open(filePath, 'a') as yearfile:
                     for pub in df[self.pubIDCol].unique():
                         for elem in self.outputDict[pub]:
                             yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
+            return 'Done creating scores, written to {outPath}.'
         return scores, self.outputDict
 
 
