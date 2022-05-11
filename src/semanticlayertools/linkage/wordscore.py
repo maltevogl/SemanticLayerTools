@@ -132,7 +132,7 @@ class CalculateScores():
         print("Creating ngram counts...")
         self.getTermPatterns(ngramMinsize=ngramMinsize, tokenMinLength=tokenMinLength)
         uniqueNGrams = []
-        for key, value in self.counts():
+        for key, value in self.counts:
             uniqueNGrams.extend(list(value.keys()))
         if self.debug is True:
             print(f'Found {len(uniqueNGrams)} unique {ngramMinsize} to {self.ngramEnd}-grams.')
