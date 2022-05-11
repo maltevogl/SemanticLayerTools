@@ -153,7 +153,7 @@ class Cocitations():
             ), 'w'
         ) as gcmetafile:
             gcmetafile.write('year,nodes,nodespercent,edges,edgepercent\n')
-            for file in tqdm(os.listdir(self.inpath), leave=False):
+            for file in tqdm([x for x in os.listdir(self.inpath) if x.endswith('.json')], leave=False):
                 try:
                     year = re.findall(r'\d{4}', file)[0]
                 except Exception:
@@ -167,6 +167,7 @@ class Cocitations():
                             f'{year},{outtuple[0]},{outtuple[1]},{outtuple[2]},{outtuple[3]}\n'
                         )
                     except Exception:
+                        print(file)
                         raise
         if self.debug is True:
             print(f'\tDone in {time.time() - starttime} seconds.')
