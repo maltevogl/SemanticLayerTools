@@ -103,7 +103,8 @@ class CalculateScores():
         # FIX: Capture invalid power warning, should only occure for negative products...
         if factors > 0:
             return {
-                target: 1.0 / self.counts[len(target)][target] * (factors) ** (1.0 / (2.0 * len(target)))
+                target: 1.0
+                / self.counts[len(target)][target] * (factors) ** (1.0 / (2.0 * len(target)))
             }
         print(target, self.counts[target], factors)
         return {
@@ -130,13 +131,15 @@ class CalculateScores():
                             f'File at {filePath} exists. Set recreate = True to overwrite.'
                         )
         print("Creating ngram counts...")
-        self.getTermPatterns(ngramMinsize=ngramMinsize, tokenMinLength=tokenMinLength)
+        self.getTermPatterns(ngramMinsize=ngramMinsize,
+                             tokenMinLength=tokenMinLength)
         uniqueNGrams = []
         uni = []
         for key in self.counts.keys():
             uniqueNGrams.extend(self.counts[key])
         if self.debug is True:
-            print(f'Found {len(uniqueNGrams)} unique {ngramMinsize} to {self.ngramEnd}-grams.')
+            print(
+                f'Found {len(uniqueNGrams)} unique {ngramMinsize} to {self.ngramEnd}-grams.')
         if limitCPUs is True:
             ncores = int(cpu_count() * 1 / 4)
         else:
@@ -231,7 +234,8 @@ class LinksOverTime():
         ngramdataframe = pd.concat(dfNgramsList)
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
-        authorList = [x for y in [x.split(';') for x in dataframe[self.authorCol].values] for x in y]
+        authorList = [x for y in [
+            x.split(';') for x in dataframe[self.authorCol].values] for x in y]
         authors = [x for x in set(authorList) if x]
         pubs = dataframe[self.pubIDCol].fillna('None').unique()
         ngrams = ngramdataframe[1].unique()
@@ -280,13 +284,13 @@ class LinksOverTime():
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
         with open(filePath, 'a') as file:
-            file.write("# A network in a general multiplex format\n")
+            file.write("# A network in a general multilayer format\n")
             file.write("*Vertices {0}\n".format(max(self.nodeMap.values())))
             for x, y in self.nodeMap.items():
                 tmpStr = '{0} "{1}"\n'.format(y, x)
                 if tmpStr:
                     file.write(tmpStr)
-            file.write("*Multiplex\n")
+            file.write("*Multilayer\n")
             file.write("# layer node layer node [weight]\n")
             if self.debug is True:
                 print('\tWriting inter-layer links to file.')
@@ -341,4 +345,5 @@ class LinksOverTime():
         """Create data for all slices."""
         for sl in tqdm(self._createSlices(windowsize)):
             self.createNodeRegister(sl, scorePath, scoreLimit)
-            self.writeLinks(sl, scorePath, scoreLimit, outpath=outPath, recreate=recreate)
+            self.writeLinks(sl, scorePath, scoreLimit,
+                            outpath=outPath, recreate=recreate)
