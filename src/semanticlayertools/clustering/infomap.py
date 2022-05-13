@@ -18,8 +18,12 @@ class Clustering():
     :type outpath: str
     :param recreate: Toggle recreation of already exisiting files
     :type recreate: bool
-    :param infomapSettings: Initializing arguments for the infomap algorithm.
-    :type infomapSettings: str
+    :param silent: Toogle verbose mode for infomap
+    :type silent: bool
+    :param num_trials: Number of runs for the infomap routine
+    :type num_trials: int
+    :param flow_model: Model for flow, directed or undirected.
+    :type flow_model: str
     :param debug: Toggle writing of debug info to standard output.
     :type debug: bool
 
@@ -34,12 +38,18 @@ class Clustering():
         inpath: str,
         outpath: str,
         recreate: bool = False,
-        infomapSettings: str = "-N5 -imultilayer -fundirected --silent",
+        silent: bool = True,
+        num_trials: int = 5,
+        flow_model: str = 'undirected',
         debug: bool = False
     ):
         self.inpath = inpath
         self.outpath = outpath
-        self.infomult = infomap.Infomap(infomapSettings)
+        self.infomult = infomap.Infomap(
+            silent=silent,
+            num_trials=num_trials,
+            flow_model=flow_model
+        )
         self.recreate = recreate
         self.debug = debug
 
@@ -71,13 +81,13 @@ class Clustering():
             if self.recreate is True:
                 os.remove(cluFilePath)
                 os.remove(ftreeFilePath)
-        self.infomult.readInputData(inFilePath)
+        self.infomult.read_file(inFilePath)
         self.infomult.run()
-        self.infomult.writeClu(cluFilePath)
-        self.infomult.writeFlowTree(ftreeFilePath)
+        self.infomult.write_clu(cluFilePath)
+        self.infomult.write_flow_tree(ftreeFilePath)
         if self.debug is True:
             print(
-                f"Clustered in {self.infomult.maxTreeDepth()} levels with codelength {self.infomult.codelength}"
+                f"Clustered in {self.infomult.max_depth()} levels with codelength {self.infomult.codelength}"
             )
             print("\tDone: Slice {0}!".format(year))
         return
