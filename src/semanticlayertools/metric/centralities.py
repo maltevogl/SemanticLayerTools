@@ -11,31 +11,15 @@ class CaluculateCentralitues():
     """Calculate centralities for networks."""
 
     def __init__(
-        self, clusterFile: str, graphPath: str, clusterMetadataPath: str,
-        outpath: str, minClusterSize: int = 1000, idcolumn: str = 'nodeID'
+        self, clusterFile: str, graphPath: str,
+        outpath: str,
     ):
-        clusterdf = pd.read_csv(clusterFile)
-        basedata = clusterdf.groupby(
-            ['year', 'cluster']
-        ).size().to_frame('counts').reset_index()
-        self.largeClusterList = list(
-            basedata.groupby('cluster').sum().query(
-                f'counts > {self.minClusterSize}'
-            ).index
-        )
-        self.clusternodes = clusterdf.query(
-            'cluster in @self.largeClusterList'
-        )
         self.graphpath = graphPath
-        self.metadatapath = clusterMetadataPath
         self.outpath = os.path.join(outpath, clusterFile.split(os.pathsep)[-1])
-        self.idColumn = idcolumn
         if os.path.isdir(self.outpath):
             raise OSError(f'Output folder {self.outpath} exists. Aborting.')
         else:
             os.mkdir(self.outpath)
-            for clu in self.largeClusterList:
-                os.mkdir(os.path.join(self.outpath, f'Cluster_{clu}'))
 
     def _mergeData(self, filename):
         """Merge metadata for cluster nodes.
@@ -64,15 +48,37 @@ class CaluculateCentralitues():
                 )
         return ''
 
-    def gatherClusterMetadata(self):
-        """Initial gathering of metadata for clusters.
+    def setupClusterData(
+        self, clusterFile: str, clusterMetadataPath: str,
+        minClusterSize: int = 1000,
+        idcolumn: str = 'nodeID'
+    ):
+        """Initial gathering of metadata for previously found time clusters.
+
+        Set minClusterSize to limit clusters considered for analysis.
 
         For all files in the metadata path, call `_mergeData` if the found
         year in the filename falls in the bounds.
 
-        This step needs to be run once, the all cluster metadata is generated
-        and can be reused.
-        """
+        This step needs to be run once, all cluster metadata is generated
+        and can be reused"""
+        self.idcolumn = idcolumn
+        self.metadatapath = clusterMetadataPath
+        clusterdf = pd.read_csv(clusterFile)
+        basedata = clusterdf.groupby(
+            ['year', 'cluster']
+        ).size().to_frame('counts').reset_index()
+        self.largeClusterList = list(
+            basedata.groupby('cluster').sum().query(
+                f'counts > {minClusterSize}'
+            ).index
+        )
+        self.clusternodes = clusterdf.query(
+            'cluster in @self.largeClusterList'
+        )
+        for clu in self.largeClusterList:
+            os.mkdir(os.path.join(self.outpath, f'Cluster_{clu}'))
+
         filenames = os.listdir(self.metadatapath)
         yearFiles = []
         for x in filenames:
@@ -84,14 +90,24 @@ class CaluculateCentralitues():
                 yearFiles.append(x)
         with multiprocessing.Pool(self.numberProc) as pool:
             _ = pool.map(self._mergeData, tqdm(yearFiles, leave=False))
-        return
+        return self
 
-    def run(
+    def fullNetwork(
         self, centrality: str = "all",
         timerange: tuple = (1945, 2005), useGC: bool = True
     ):
-        """Run calculation."""
+        """Run calculation based on Pajek or NCol network data.
+
+        By default timerange is limited to 1945 to 2005. Change accordingly.
+        For centralities choose "all" or one of the following:
+            "authority"
+            "betweenness"
+            "closeness"
+            "degree"
+        """
+        self.centralities = {}
         bins = 10 ** np.linspace(np.log10(0.00001), np.log10(1.0), 100)
+        binsNormal = np.linspace(0, 1, 100)
         with open(f'{self.outpath}centralities_logbin.csv', 'a') as result:
             for year in tqdm(self.yearrange):
                 if useGC is False:
@@ -106,22 +122,36 @@ class CaluculateCentralitues():
                         names=True,
                         weights=True
                     )
-                authority = graph.authority_score(scale=True)
-                betweenness = graph.betweenness(directed=False)
-                closeness = graph.closeness(mode='all', normalized=True)
-                degrees = graph.degree(graph.vs, mode='all')
-                maxDeg = max(degrees)
-                maxBet = max(betweenness)
-                # Write results to files
-                for centName, centrality in [
-                    ('Authority', authority),
-                    ('Betweenness', [x/maxBet for x in betweenness]),
-                    ('Closeness', closeness),
-                    # ('Eigenvector', eigenvector),
-                    ('Degree', [x/maxDeg for x in degrees])
-                ]:
+                if centrality == "authority" or "all":
+                    centrality = graph.authority_score(scale=True)
+                    self.centralities[centrality] = centrality
                     histoCentrality = np.histogram(centrality, bins=bins)
                     for val, bin_ in zip(histoCentrality[0], histoCentrality[1]):
                         result.write(
-                            f"{centName}, {year}, {bin_}, {val/len(graph.vs)}\n")
-        return "Done"
+                            f"Authority, {year}, {bin_}, {val/len(graph.vs)}\n")
+                elif centrality == "betweenness" or "all":
+                    centrality = graph.betweenness(directed=False)
+                    maxBet = max(centrality)
+                    centrality_norm = [x/maxBet for x in centrality]
+                    self.centralities[centrality] = centrality_norm
+                    histoCentrality = np.histogram(centrality_norm, bins=bins)
+                    for val, bin_ in zip(histoCentrality[0], histoCentrality[1]):
+                        result.write(
+                            f"Betweenness, {year}, {bin_}, {val/len(graph.vs)}\n")
+                elif centrality == "degree" or "all":
+                    centrality = graph.degree(graph.vs, mode='all')
+                    maxDeg = max(centrality)
+                    centrality_norm = [x/maxDeg for x in centrality]
+                    self.centralities[centrality] = centrality_norm
+                    histoCentrality = np.histogram(centrality_norm, bins=bins)
+                    for val, bin_ in zip(histoCentrality[0], histoCentrality[1]):
+                        result.write(
+                            f"Degree, {year}, {bin_}, {val/len(graph.vs)}\n")
+                elif centrality == "closeness" or "all":
+                    centrality = graph.closeness(mode='all', normalized=True)
+                    self.centralities[centrality] = centrality
+                    histoCentrality = np.histogram(centrality, bins=binsNormal)
+                    for val, bin_ in zip(histoCentrality[0], histoCentrality[1]):
+                        result.write(
+                            f"Closeness, {year}, {bin_}, {val/len(graph.vs)}\n")
+        return self
