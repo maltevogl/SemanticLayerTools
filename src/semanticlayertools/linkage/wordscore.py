@@ -51,125 +51,159 @@ class CalculateScores():
     def __init__(
         self,
         sourceDataframe,
-        textColumn="text",
-        pubIDColumn="pubID",
-        yearColumn='year',
-        ngramsize=5,
-        debug=False
+        textColumn:str = "text",
+        pubIDColumn:str = "pubID",
+        yearColumn:str = 'year',
+        ngramMax:int = 5,
+        ngramMin:int = 2,
+        debug:bool = False
     ):
 
         self.baseDF = sourceDataframe
         self.textCol = textColumn
         self.pubIDCol = pubIDColumn
         self.yearCol = yearColumn
-        self.ngramEnd = ngramsize
+        self.ngramEnd = ngramMax
+        if ngramMin > 2:
+            raise ValueError('The minimal ngram size has to be either 1 or 2!')
+        self.ngramStart = ngramMin
+        self.currentyear = ''
+        self.scores = {}
         self.outputDict = {}
         self.counts = {}
-        self.corpussize = 1
         self.debug = debug
 
-    def getTermPatterns(self, tokenMinLength=2, ngramMinsize=2):
+    def _window(self, seq, n):
+        """Return a sliding window (of width n) over data from the iterable.
+
+        s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...
+        """
+        it = iter(seq)
+        result = tuple(islice(it, n))
+        if len(result) == n:
+            yield result
+        for elem in it:
+            result = result[1:] + (elem,)
+            yield result
+
+
+    def _createSlices(self, windowsize):
+        slices = []
+        years = sorted(self.baseDF[self.yearCol].unique())
+        for x in self._window(years, windowsize):
+            slices.append(x)
+        return slices
+
+    def getTermPatterns(self, year, dataframe, tokenMinLength=2):
         """Create dictionaries of occuring ngrams."""
-        allNGrams = {x: [] for x in range(ngramMinsize, self.ngramEnd + 1, 1)}
+        self.counts[year] = {}
+        self.outputDict[year] = {}
+        allNGrams = {x: [] for x in range(self.ngramStart, self.ngramEnd + 1, 1)}
         pos_tag = ["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"]
-        for _, row in tqdm(self.baseDF.iterrows()):
+        for _, row in tqdm(dataframe.iterrows(), leave=False):
             tokens = nltk.word_tokenize(row[self.textCol])
             pos = nltk.pos_tag(tokens)
             nnJJtokens = [
                 x[0].lower() for x in pos if x[1] in pos_tag and len(x[0]) > tokenMinLength
             ]
             tempNGram = []
-            for i in range(ngramMinsize, self.ngramEnd + 1, 1):
+            for i in range(self.ngramStart, self.ngramEnd + 1, 1):
                 val = allNGrams[i]
                 newngrams = list(nltk.ngrams(nnJJtokens, i))
                 val.extend(newngrams)
                 tempNGram.extend(newngrams)
                 allNGrams.update({i: val})
-            self.outputDict[row[self.pubIDCol]] = tempNGram
+            self.outputDict[year][row[self.pubIDCol]] = tempNGram
         allgrams = [x for y in [y for x, y in allNGrams.items()] for x in y]
-        self.corpussize = len(allgrams)
+        # self.corpussize = len(allgrams)
         for key, value in allNGrams.items():
-            self.counts[key] = dict(Counter(value))
+            self.counts[year][key] = dict(Counter(value))
 
     def getScore(self, target):
         """Calculate ngram score."""
         valueList = []
         for _, subgram in enumerate(target):
-            contains = [x for x in self.counts[2].keys() if subgram in x]
+            contains = [x for x in self.counts[self.currentyear][2].keys() if subgram in x]
             rvalue = len(set(x for x in contains if x[0] == subgram))
             lvalue = len(set(x for x in contains if x[1] == subgram))
             valueList.append((lvalue + 1.0) * (rvalue + 1.0))
         factors = np.prod(valueList, dtype=np.float64)
-        # FIX: Capture invalid power warning, should only occure for negative products...
-        if factors > 0:
-            return {
-                target: 1.0
-                / self.counts[len(target)][target] * (factors) ** (1.0 / (2.0 * len(target)))
-            }
-        print(target, self.counts[target], factors)
         return {
-            target: 0.0
+            target: 1.0/self.counts[self.currentyear][len(target)][target] * (factors) ** (1.0 / (2.0 * len(target)))
         }
 
     def _calcBatch(self, batch):
         res = []
-        for elem in tqdm(batch):
+        for elem in tqdm(batch, leave=False):
             res.append(self.getScore(elem))
         return res
 
-    def run(self, write=False, outpath='./', recreate=False, ngramMinsize=2, tokenMinLength=2, limitCPUs=True):
+    def run(
+        self, windowsize:int = 3, write:bool = False, outpath:str = './', 
+        recreate:bool = False, tokenMinLength:int = 2, 
+        limitCPUs:bool = True
+    ):
         """Get score for all documents."""
-        if ngramMinsize > 2:
-            raise ValueError('The minimal ngram size has to be either 1 or 2!')
-        scores = {}
-        if write is True:
-            for year, df in self.baseDF.groupby(self.yearCol):
+        for timeslice in self._createSlices(windowsize):
+            dataframe = self.baseDF[self.baseDF[self.yearCol].isin(timeslice)]
+            year = timeslice[-1]
+            self.scores.update({year: {}})
+            if write is True:
                 filePath = f'{outpath}{str(year)}.tsv'
                 if os.path.isfile(filePath):
-                    if recreate is False:
+                     if recreate is False:
                         raise IOError(
                             f'File at {filePath} exists. Set recreate = True to overwrite.'
                         )
-        print("Creating ngram counts...")
-        self.getTermPatterns(ngramMinsize=ngramMinsize,
-                             tokenMinLength=tokenMinLength)
-        uniqueNGrams = []
-        uni = []
-        for key in self.counts.keys():
-            uniqueNGrams.extend(self.counts[key])
-        if self.debug is True:
-            print(
-                f'Found {len(uniqueNGrams)} unique {ngramMinsize} to {self.ngramEnd}-grams.')
-        if limitCPUs is True:
-            ncores = int(cpu_count() * 1 / 4)
-        else:
-            ncores = cpu_count() - 2
-        print('Starting calculation of scores...')
-        pool = Pool(ncores)
-        chunk_size = int(len(uniqueNGrams) / ncores)
-        batches = [
-            list(uniqueNGrams)[i:i + chunk_size] for i in range(0, len(uniqueNGrams), chunk_size)
-        ]
-        ncoresResults = pool.map(self._calcBatch, batches)
-        results = [x for y in ncoresResults for x in y]
-        for elem in results:
-            scores.update(elem)
-        for key, val in self.outputDict.items():
-            tmpList = []
-            for elem in val:
-                tmpList.append([elem, scores[elem]])
-            self.outputDict.update({key: tmpList})
-        if write is True:
-            for year, df in self.baseDF.groupby(self.yearCol):
+            if self.debug is True:
+                print(f"Creating ngram counts for {year}.")
+            self.getTermPatterns(
+                year=year,
+                dataframe=dataframe,
+                tokenMinLength=tokenMinLength
+            )
+            uniqueNGrams = []
+            for key in self.counts[year].keys():
+                uniqueNGrams.extend(self.counts[year][key])
+            if self.debug is True:
+                print(
+                    f'Found {len(uniqueNGrams)} unique {self.ngramStart} to {self.ngramEnd}-grams.')
+            if limitCPUs is True:
+                ncores = int(cpu_count() * 1 / 4)
+            else:
+                ncores = cpu_count() - 2
+            if self.debug is True:
+                print(f'Starting calculation of scores for {year}.')
+            pool = Pool(ncores)
+            chunk_size = int(len(uniqueNGrams) / ncores)
+            batches = [
+                list(uniqueNGrams)[i:i + chunk_size] for i in range(0, len(uniqueNGrams), chunk_size)
+            ]
+            self.currentyear = year
+            ncoresResults = pool.map(self._calcBatch, batches)
+            results = [x for y in ncoresResults for x in y]
+            for elem in results:
+                self.scores[year].update(elem)
+            for key, val in self.outputDict[year].items():
+                tmpList = []
+                for elem in val:
+                    try:
+                        tmpList.append([elem, self.scores[year][elem]])
+                    except TypeError:
+                        print(elem)
+                        raise
+                self.outputDict[year].update({key: tmpList})
+            if write is True:
                 filePath = f'{outpath}{str(year)}.tsv'
                 if recreate is True:
                     os.remove(filePath)
                 with open(filePath, 'a') as yearfile:
-                    for pub in df[self.pubIDCol].unique():
-                        for elem in self.outputDict[pub]:
+                    for pub in dataframe[self.pubIDCol].unique():
+                        for elem in self.outputDict[year][pub]:
                             yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
-            return 'Done creating scores, written to {outPath}.'
-        return scores, self.outputDict
+                if self.debug is True:
+                    print(f'Done creating scores for {year}, written to {filePath}.')
+        return self.scores, self.outputDict
 
 
 class LinksOverTime():
@@ -221,25 +255,27 @@ class LinksOverTime():
             slices.append(x)
         return slices
 
-    def createNodeRegister(self, sl, scorePath, scoreLimit):
-        """Create multilayer node register for time slice."""
-        if self.debug is True:
-            print(f'Slice: {sl[0]}')
-        dataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
-        dfNgramsList = [pd.read_csv(
-            scorePath + str(slN) + '.tsv',
-            sep='\t',
-            header=None
-        ) for slN in sl]
-        ngramdataframe = pd.concat(dfNgramsList)
+    def createNodeRegister(self, scorePath, scoreLimit):
+        """Create multilayer node register for all time slices."""
+        scores = [x for x in os.listdir(scorePath) if x.endswith('.tsv')]
+        ngrams = [pd.read_csv(
+                scorePath + score,
+                sep='\t',
+                header=None
+            ) for score in scores]
+        ngramdataframe = pd.concat(ngrams)
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
-        authorList = [x for y in [
-            x.split(';') for x in dataframe[self.authorCol].values] for x in y]
+        authorList = [
+            x for y in [
+                z.split(';') for z in self.dataframe[self.authorCol].values
+            ] for x in y
+        ]
         authors = [x for x in set(authorList) if x]
-        pubs = dataframe[self.pubIDCol].fillna('None').unique()
+        pubs = self.dataframe[self.pubIDCol].fillna('None').unique()
         ngrams = ngramdataframe[1].unique()
-
+        if self.debug is True:
+            print(f"Got {len(authors)} authors, {len(pubs)} papers and {len(ngrams)} unique ngrams.")
         for authorval in authors:
             if not self.nodeMap.values():
                 self.nodeMap.update({authorval: 1})
@@ -257,15 +293,15 @@ class LinksOverTime():
 
         if self.debug is True:
             print(
-                '\tNumber of vertices (authors, papers and ngrams) {0}'.format(
+                '\tNumber of vertices {0}'.format(
                     max(self.nodeMap.values())
                 )
             )
 
     def writeLinks(self, sl, scorePath, scoreLimit, outpath='./', recreate=False):
         """Write multilayer links to file in Pajek format."""
-        dataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
-        filePath = outpath + 'multilayerPajek_{0}.net'.format(sl[0])
+        slicedataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
+        filePath = outpath + 'multilayerPajek_{0}.net'.format(sl[-1])
 
         if os.path.isfile(filePath):
             if recreate is False:
@@ -275,18 +311,32 @@ class LinksOverTime():
             if recreate is True:
                 os.remove(filePath)
 
-        dfNgramsList = [pd.read_csv(
-            scorePath + str(slN) + '.tsv',
+        ngramdataframe = pd.read_csv(
+            scorePath,
             sep='\t',
             header=None
-        ) for slN in sl]
-        ngramdataframe = pd.concat(dfNgramsList)
+        )
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
+
+        authorList = [
+                    x for y in [
+                        z.split(';') for z in slicedataframe[self.authorCol].values
+                    ] for x in y
+                ]
+        authors = [x for x in set(authorList) if x]
+        pubs = slicedataframe[self.pubIDCol].fillna('None').unique()
+        ngrams = ngramdataframe[1].unique()
+
+        slicenodes = authors
+        slicenodes.extend(pubs)
+        slicenodes.extend(ngrams)
+
+        slicenodemap = {x:y for x,y in self.nodeMap.items() if x in slicenodes}
 
         with open(filePath, 'a') as file:
             file.write("# A network in a general multilayer format\n")
             file.write("*Vertices {0}\n".format(max(self.nodeMap.values())))
-            for x, y in self.nodeMap.items():
+            for x, y in slicenodemap.items():
                 tmpStr = '{0} "{1}"\n'.format(y, x)
                 if tmpStr:
                     file.write(tmpStr)
@@ -294,11 +344,12 @@ class LinksOverTime():
             file.write("# layer node layer node [weight]\n")
             if self.debug is True:
                 print('\tWriting inter-layer links to file.')
-            for _, row in dataframe.fillna('').iterrows():
+            for _, row in slicedataframe.fillna('').iterrows():
                 authors = row[self.authorCol].split(';')
                 paper = row[self.pubIDCol]
                 if paper not in self.nodeMap.keys():
                     print(f'Cannot find {paper}')
+                # TODO: The ngram part is not working, FIXME!
                 ngramsList = ngramdataframe[ngramdataframe[0] == paper]
                 paperNr = self.nodeMap[paper]
                 if len(authors) >= 2:
@@ -324,7 +375,7 @@ class LinksOverTime():
                             )
                         )
                     except KeyError:
-                        pass
+                        raise
                 for _, ngramrow in ngramsList.iterrows():
                     try:
                         ngramNr = self.nodeMap[ngramrow[1]]
@@ -339,11 +390,16 @@ class LinksOverTime():
                             )
                         )
                     except KeyError:
-                        pass
+                        print(ngramrow[1])
+                        raise
+                        # pass
 
-    def run(self, recreate=False, windowsize=1, scorePath='./', outPath='./', scoreLimit=1.0):
+    def run(self, windowsize = 3, recreate=False, scorePath='./', outPath='./', scoreLimit=1.0):
         """Create data for all slices."""
-        for sl in tqdm(self._createSlices(windowsize)):
-            self.createNodeRegister(sl, scorePath, scoreLimit)
-            self.writeLinks(sl, scorePath, scoreLimit,
+        slices = self._createSlices(windowsize)
+        scores = [x for x in os.listdir(scorePath) if x.endswith('.tsv')]
+        self.createNodeRegister(scorePath, scoreLimit)
+        for sl,score in tqdm(zip(slices, scores), leave=False):
+            
+            self.writeLinks(sl, os.path.join(scorePath, score), scoreLimit,
                             outpath=outPath, recreate=recreate)
