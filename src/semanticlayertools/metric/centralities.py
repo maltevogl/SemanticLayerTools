@@ -7,19 +7,23 @@ import numpy as np
 import igraph as ig
 
 
-class CaluculateCentralitues():
+class CalculateCentralities():
     """Calculate centralities for networks."""
 
     def __init__(
-        self, clusterFile: str, graphPath: str,
-        outpath: str,
+        self,
+        clusterFile: str,
+        graphPath: str,
+        outPath: str,
     ):
-        self.graphpath = graphPath
-        self.outpath = os.path.join(outpath, clusterFile.split(os.pathsep)[-1])
-        if os.path.isdir(self.outpath):
-            raise OSError(f'Output folder {self.outpath} exists. Aborting.')
+        self.outPath = os.path.join(
+            outPath, clusterFile.split("/")[-1].split(".")[0]
+        )
+        self.graphPath = graphPath
+        if os.path.isdir(self.outPath):
+            raise OSError(f'Output folder {self.outPath} exists. Aborting.')
         else:
-            os.mkdir(self.outpath)
+            os.mkdir(self.outPath)
 
     def _mergeData(self, filename):
         """Merge metadata for cluster nodes.
@@ -41,7 +45,7 @@ class CaluculateCentralitues():
             for clu, g0 in selectMerge.groupby('cluster'):
                 g0.to_json(
                     os.path.join(
-                        self.outpath,
+                        self.outPath,
                         f'Cluster_{clu}',
                         'merged_' + filename
                     ), orient='records', lines=True
@@ -77,7 +81,7 @@ class CaluculateCentralitues():
             'cluster in @self.largeClusterList'
         )
         for clu in self.largeClusterList:
-            os.mkdir(os.path.join(self.outpath, f'Cluster_{clu}'))
+            os.mkdir(os.path.join(self.outPath, f'Cluster_{clu}'))
 
         filenames = os.listdir(self.metadatapath)
         yearFiles = []
@@ -106,22 +110,25 @@ class CaluculateCentralitues():
             "degree"
         """
         self.centralities = {}
+        self.timerange = timerange
         bins = 10 ** np.linspace(np.log10(0.00001), np.log10(1.0), 100)
         binsNormal = np.linspace(0, 1, 100)
-        with open(f'{self.outpath}centralities_logbin.csv', 'a') as result:
-            for year in tqdm(self.yearrange):
-                if useGC is False:
-                    graph = ig.Graph.Read_Ncol(
-                        f'{self.graphPath}{year}_meta.ncol',
-                        names=True,
-                        weights=True
-                    )
-                elif useGC is True:
-                    graph = ig.Graph.Read_Pajek(
-                        f'{self.graphPath}{year}_meta_GC.net',
-                        names=True,
-                        weights=True
-                    )
+        with open(f'{self.outPath}centralities_logbin.csv', 'a') as result:
+            for year in tqdm(self.timerange):
+                try:
+                    if useGC is False:
+                        graph = ig.Graph.Read_Ncol(
+                            f'{self.graphPath}{year}_meta.ncol',
+                            names=True,
+                            weights=True,
+                            directed=False
+                        )
+                    elif useGC is True:
+                        graph = ig.Graph.Read_Pajek(
+                            f'{self.graphPath}{year}_meta_GC.net'
+                        )
+                except FileNotFoundError:
+                    continue
                 if centrality == "authority" or "all":
                     centrality = graph.authority_score(scale=True)
                     self.centralities[centrality] = centrality

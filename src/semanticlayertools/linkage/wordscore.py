@@ -1,4 +1,5 @@
 import os
+import time
 from collections import Counter
 from itertools import islice, combinations
 from multiprocessing import Pool, cpu_count
@@ -25,8 +26,8 @@ class CalculateScores():
     A global dictionary of counts of different ngrams is build in `counts`.
     The ngram relations of every text are listed in `outputDict`.
 
-    Scoring counts occurance of different words left and right of each single
-    token in each ngram, weighted by ngram size.
+    Scoring is based on counts of occurances of different words left and right of each single
+    token in each ngram, weighted by ngram size, for details see reference.
 
     :param sourceDataframe: Dataframe containing the basic corpus
     :type sourceDataframe: class:`pandas.DataFrame`
@@ -115,7 +116,6 @@ class CalculateScores():
                 allNGrams.update({i: val})
             self.outputDict[year][row[self.pubIDCol]] = tempNGram
         allgrams = [x for y in [y for x, y in allNGrams.items()] for x in y]
-        # self.corpussize = len(allgrams)
         for key, value in allNGrams.items():
             self.counts[year][key] = dict(Counter(value))
 
@@ -144,6 +144,8 @@ class CalculateScores():
         limitCPUs:bool = True
     ):
         """Get score for all documents."""
+        starttime = time.time()
+        print(f"Got data for {self.baseDF[self.yearCol].min()} to {self.baseDF[self.yearCol].max()}.\n\tCreating slices.")
         for timeslice in self._createSlices(windowsize):
             dataframe = self.baseDF[self.baseDF[self.yearCol].isin(timeslice)]
             year = timeslice[-1]
@@ -196,14 +198,21 @@ class CalculateScores():
             if write is True:
                 filePath = f'{outpath}{str(year)}.tsv'
                 if recreate is True:
-                    os.remove(filePath)
+                    try:
+                        os.remove(filePath)
+                    except FileNotFoundError:
+                        pass
                 with open(filePath, 'a') as yearfile:
                     for pub in dataframe[self.pubIDCol].unique():
                         for elem in self.outputDict[year][pub]:
                             yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
                 if self.debug is True:
                     print(f'Done creating scores for {year}, written to {filePath}.')
-        return self.scores, self.outputDict
+        print(f'Done in {(time.time() - starttime)/60:.2f} minutes.')
+        if write is True:
+            return
+        else:
+            return self.scores, self.outputDict
 
 
 class LinksOverTime():
@@ -257,6 +266,7 @@ class LinksOverTime():
 
     def createNodeRegister(self, scorePath, scoreLimit):
         """Create multilayer node register for all time slices."""
+        starttime = time.time()
         scores = [x for x in os.listdir(scorePath) if x.endswith('.tsv')]
         ngrams = [pd.read_csv(
                 scorePath + score,
@@ -275,7 +285,7 @@ class LinksOverTime():
         pubs = self.dataframe[self.pubIDCol].fillna('None').unique()
         ngrams = ngramdataframe[1].unique()
         if self.debug is True:
-            print(f"Got {len(authors)} authors, {len(pubs)} papers and {len(ngrams)} unique ngrams.")
+            print(f"Got {len(authors)} authors, {len(pubs)} papers and {len(ngrams)} unique ngrams.\n\tBuilding node map...")
         for authorval in authors:
             if not self.nodeMap.values():
                 self.nodeMap.update({authorval: 1})
@@ -297,8 +307,10 @@ class LinksOverTime():
                     max(self.nodeMap.values())
                 )
             )
+        print(f"Done building node register in {(time.time() - starttime)/60:.2f} minutes.")
+        return
 
-    def writeLinks(self, sl, scorePath, scoreLimit, outpath='./', recreate=False):
+    def writeLinks(self, sl, scorePath, scoreLimit, normalize, outpath='./', recreate=False):
         """Write multilayer links to file in Pajek format."""
         slicedataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
         filePath = outpath + 'multilayerPajek_{0}.net'.format(sl[-1])
@@ -316,7 +328,15 @@ class LinksOverTime():
             sep='\t',
             header=None
         )
+        if normalize is True:
+            maxval = ngramdataframe[2].max()
+            normVal = ngramdataframe[2]/maxval
+            ngramdataframe[2] = normVal
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
+
+        # Sets the default value for person to person and person to publication edges
+        # TODO: This should be configurable and different for paper to person, and person to person edges
+        personLinkVal = ngramdataframe[2].median()
 
         authorList = [
                     x for y in [
@@ -335,7 +355,7 @@ class LinksOverTime():
 
         with open(filePath, 'a') as file:
             file.write("# A network in a general multilayer format\n")
-            file.write("*Vertices {0}\n".format(max(self.nodeMap.values())))
+            file.write("*Vertices {0}\n".format(len(slicenodemap)))
             for x, y in slicenodemap.items():
                 tmpStr = '{0} "{1}"\n'.format(y, x)
                 if tmpStr:
@@ -344,35 +364,23 @@ class LinksOverTime():
             file.write("# layer node layer node [weight]\n")
             if self.debug is True:
                 print('\tWriting inter-layer links to file.')
-            for _, row in slicedataframe.fillna('').iterrows():
+            for _, row in slicedataframe.iterrows():
                 authors = row[self.authorCol].split(';')
                 paper = row[self.pubIDCol]
-                if paper not in self.nodeMap.keys():
+                if paper not in slicenodemap.keys():
                     print(f'Cannot find {paper}')
-                # TODO: The ngram part is not working, FIXME!
-                ngramsList = ngramdataframe[ngramdataframe[0] == paper]
-                paperNr = self.nodeMap[paper]
+                ngramsList = ngramdataframe.query("@ngramdataframe[0] == @paper")
+                paperNr = slicenodemap[paper]
                 if len(authors) >= 2:
-                    # pairs = [x for x in combinations(authors, 2)]
-                    for pair in combinations(authors, 2):  # pairs:
+                    for pair in combinations(authors, 2):
                         file.write(
-                            '{0} {1} {2} {3} 1\n'.format(
-                                1,
-                                self.nodeMap[pair[0]],
-                                1,
-                                self.nodeMap[pair[1]]
-                            )
+                            f'1 {slicenodemap[pair[0]]} 1 {slicenodemap[pair[1]]} {personLinkVal}\n'
                         )
                 for author in authors:
                     try:
                         authNr = self.nodeMap[author]
                         file.write(
-                            '{0} {1} {2} {3} 1\n'.format(
-                                1,
-                                authNr,
-                                2,
-                                paperNr
-                            )
+                            f'1 {authNr} 2 {paperNr} {personLinkVal}\n'
                         )
                     except KeyError:
                         raise
@@ -381,25 +389,26 @@ class LinksOverTime():
                         ngramNr = self.nodeMap[ngramrow[1]]
                         weight = ngramrow[2]
                         file.write(
-                            '{0} {1} {2} {3} {4}\n'.format(
-                                2,
-                                paperNr,
-                                3,
-                                ngramNr,
-                                weight
-                            )
+                            f'2 {paperNr} 3 {ngramNr} {weight:.2f}\n'
                         )
                     except KeyError:
                         print(ngramrow[1])
                         raise
-                        # pass
 
-    def run(self, windowsize = 3, recreate=False, scorePath='./', outPath='./', scoreLimit=1.0):
-        """Create data for all slices."""
+    def run(self, windowsize:int = 3, normalize:bool = True, recreate:bool = False, 
+        scorePath:str = './', outPath:str = './', scoreLimit:float = 0.1
+    ):
+        """Create data for all slices. 
+        
+        The slice window size needs to correspondent to the one used for calculating the scores to be
+        consistent.
+        
+        Choose normalize=True (default) to normalize ngram weights. In this case the maximal score
+        for each time slice is 1.0. Choose the score limit accordingly.
+        """
         slices = self._createSlices(windowsize)
-        scores = [x for x in os.listdir(scorePath) if x.endswith('.tsv')]
+        scores = sorted([x for x in os.listdir(scorePath) if x.endswith('.tsv')])
         self.createNodeRegister(scorePath, scoreLimit)
-        for sl,score in tqdm(zip(slices, scores), leave=False):
-            
-            self.writeLinks(sl, os.path.join(scorePath, score), scoreLimit,
+        for sl,score in tqdm(zip(slices, scores), leave=False, position=0):
+            self.writeLinks(sl, os.path.join(scorePath, score), scoreLimit, normalize,
                             outpath=outPath, recreate=recreate)
