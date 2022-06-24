@@ -12,16 +12,15 @@ num_processes = multiprocessing.cpu_count()
 
 def run(
     inputFilepath: str,
-    cociteOutpath: str,
-    timeclusterOutpath: str,
-    reportsOutpath: str,
+    outputPath: str,
     resolution: float,
     intersliceCoupling: float,
     minClusterSize: int = 1000,
     timerange: tuple = (1945, 2005),
     referenceColumnName: str = 'reference',
     numberproc: int = num_processes,
-    limitRefLength=False, debug=False
+    limitRefLength: bool = False,
+    debug: bool = False
 ):
     """Runs all steps of the temporal clustering pipepline.
 
@@ -58,12 +57,13 @@ def run(
     :param limitRefLength: Either False or integer giving the maximum number of references a considered publication is allowed to contain
     :type limitRefLength: bool or int
     """
-    for path in [cociteOutpath, timeclusterOutpath, reportsOutpath]:
-        os.makedirs(path)
+    for subdir in ["cociteGraphs", "timeClusters", "reports"]:
+        os.makedirs(os.path.join(outputPath, subdir))
+    
     starttime = time.time()
     cocites = Cocitations(
         inpath=inputFilepath,
-        outpath=cociteOutpath,
+        outpath=os.path.join(outputPath, "cociteGraphs"),
         columnName=referenceColumnName,
         numberProc=numberproc,
         limitRefLength=limitRefLength,
@@ -72,8 +72,8 @@ def run(
     )
     cocites.processFolder()
     timeclusters = TimeCluster(
-        inpath=cociteOutpath,
-        outpath=timeclusterOutpath,
+        inpath=os.path.join(outputPath, "cociteGraphs"),
+        outpath=os.path.join(outputPath, "timeClusters"),
         resolution=resolution,
         intersliceCoupling=intersliceCoupling,
         timerange=timerange,
@@ -83,11 +83,11 @@ def run(
     clusterreports = ClusterReports(
         infile=timeclfile,
         metadatapath=inputFilepath,
-        outpath=reportsOutpath,
+        outpath=os.path.join(outputPath, "reports"),
         numberProc=numberproc,
         minClusterSize=minClusterSize,
         timerange=(timerange[0], timerange[1] + 3)
     )
     clusterreports.gatherClusterMetadata()
     clusterreports.writeReports()
-    print(f'Done after {time.time() - starttime} seconds.')
+    print(f'Done after {(time.time() - starttime)/60:.2f} minutes.')

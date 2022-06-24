@@ -14,7 +14,6 @@ from tqdm import tqdm
 num_processes = multiprocessing.cpu_count()
 
 limitRefLength = TypeVar('limitRefLength', bool, int)
-debugVar = TypeVar('debugVar', bool, str)
 
 
 class Cocitations():
@@ -43,15 +42,15 @@ class Cocitations():
     :type limitRefLength: bool or int
     :param timerange: Time range to consider (default=(1945,2005))
     :type timerange: tuple
-    :param debug: False/True or l2 to show level 2 debugging messages
+    :param debug: bool
     """
 
     def __init__(
-        self, inpath, outpath, columnName,
+        self, inpath: str, outpath: str, columnName: str,
         numberProc: int = num_processes,
         limitRefLength: limitRefLength = False,
-        timerange: tuple = (1945, 2005),
-        debug: debugVar = False
+        timerange: tuple([int,int]) = (1945, 2005),
+        debug: bool = False
     ):
         self.inpath = inpath
         self.outpath = outpath
@@ -70,17 +69,19 @@ class Cocitations():
         :rtype: list
         """
         res = []
+        chunk = chunk.dropna(subset=[self.columnName])
         if type(self.limitRefLength) == int:
             reflen = chunk[self.columnName].apply(
-                lambda x: True if type(x) == list and len(x) <= self.limitRefLength else False
+                lambda x: type(x) == list and len(x) <= self.limitRefLength
             )
             data = chunk[reflen].copy()
         else:
             data = chunk.copy()
         for idx, row in data.iterrows():
             comb = combinations(row[self.columnName], 2)
-            for elem in list(comb):
-                res.append((elem))
+            res.extend(list(comb))
+            #for elem in list(comb):
+            #    res.append((elem))
         return res
 
     def calculateCoCitation(self, filepath):
@@ -89,6 +90,10 @@ class Cocitations():
         Creates three files: Metadata-File with all components information,
         Giant component network data in pajek format and full graph data in
         edgelist format.
+
+        The input dataframe is split in chunks depending on the available cpu processes. All possible combinations for all 
+        elements of the reference column are calculated. The resulting values are counted to define the weight of two 
+        papers being cocited in the source dataframe.
 
         :param filepath: Path for input corous
         :type filepath: str
@@ -105,16 +110,16 @@ class Cocitations():
             chunks = np.array_split(data, chunk_size)
             pool = multiprocessing.Pool(processes=self.numberProc)
             cocitations = pool.map(self.getCombinations, chunks)
-            cocitCounts = Counter([x for y in cocitations for x in y])
+            cocitCounts = Counter([x for y in cocitations for x in y])  # This defines the weight of the cocitation edge.
             sortCoCitCounts = [
                 (x[0][0], x[0][1], x[1]) for x in cocitCounts.most_common()
             ]
-            tempG = ig.Graph.TupleList(sortCoCitCounts, weights=True, vertex_name_attr='id')
-            components = tempG.components()
+            tempG = ig.Graph.TupleList(sortCoCitCounts, weights=True, vertex_name_attr='id')  # Igraph is used to generate the basic graph from the weighted tuples.
+            components = tempG.components() # Disconnected components are identified, i.e. subgraphs without edges to other subgraphs
             sortedComponents = sorted(
                 [(x, len(x), len(x) * 100 / len(tempG.vs)) for x in components], key=lambda x: x[1], reverse=True
-            )
-            with open(os.path.join(self.outpath, infilename + '_graphMetadata.txt'), 'w') as outfile:
+            ) # Sorting the result in reverse order yields the first element as the giant component of the network.
+            with open(os.path.join(self.outpath, infilename + '_graphMetadata.txt'), 'w') as outfile: # To judge the quality of the giant component in relation to the full graph, reports are created.
                 outfile.write(f'Graph derived from {filepath}\nSummary:\n')
                 outfile.write(tempG.summary() + '\n\nComponents (ordered by size):\n\n')
                 for idx, elem in enumerate(sortedComponents):
@@ -130,7 +135,7 @@ class Cocitations():
                             len(gcompTemp.es) * 100 / len(tempG.es)
                         )
             giantComponent = sortedComponents[0]
-            giantComponentGraph = tempG.vs.select(giantComponent[0]).subgraph()
+            giantComponentGraph = tempG.vs.select(giantComponent[0]).subgraph() # Two different network formats are written: The giant component as a Pajek file, and the full graph in NCOL format. 
             giantComponentGraph.write_pajek(
                 os.path.join(self.outpath, infilename + '_GC.net')
             )
@@ -140,7 +145,7 @@ class Cocitations():
         except IndexError:
             print(filepath)
             return (0,0,0,0)
-        if self.debug == "l2":
+        if self.debug is True:
             print(f'\tDone in {time.time() - starttime} seconds.')
         return gcouttuple
 
