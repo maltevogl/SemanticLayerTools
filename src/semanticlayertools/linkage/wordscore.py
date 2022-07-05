@@ -211,8 +211,7 @@ class CalculateScores():
         print(f'Done in {(time.time() - starttime)/60:.2f} minutes.')
         if write is True:
             return
-        else:
-            return self.scores, self.outputDict
+        return self.scores, self.outputDict
 
 
 class LinksOverTime():
