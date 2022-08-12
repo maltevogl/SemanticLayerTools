@@ -293,16 +293,20 @@ class LinksOverTime():
                     self.nodeMap.update(
                         {authorval: max(self.nodeMap.values()) + 1}
                     )
+        if self.debug is True:
+            print('\tDone authors.')
         for pubval in list(pubs):
             if pubval not in self.nodeMap.keys():
                 self.nodeMap.update({pubval: max(self.nodeMap.values()) + 1})
+        if self.debug is True:
+            print('\tDone publications.')
         for ngramval in list(ngrams):
             if ngramval not in self.nodeMap.keys():
                 self.nodeMap.update({ngramval: max(self.nodeMap.values()) + 1})
 
         if self.debug is True:
             print(
-                '\tNumber of vertices {0}'.format(
+                '\tDone ngrams.\n\tNumber of vertices {0}'.format(
                     max(self.nodeMap.values())
                 )
             )
