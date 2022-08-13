@@ -87,7 +87,7 @@ class Clustering():
         self.infomult.write_flow_tree(ftreeFilePath)
         if self.debug is True:
             print(
-                f"Clustered in {self.infomult.max_depth()} levels with codelength {self.infomult.codelength}"
+                f"Clustered in {self.infomult.max_depth} levels with codelength {self.infomult.codelength}"
             )
             print("\tDone: Slice {0}!".format(year))
         return
