@@ -230,10 +230,10 @@ class LinksOverTime():
 
     def __init__(
         self,
-        dataframe,
-        authorColumn='authors',
-        pubIDColumn="pubID",
-        yearColumn='year',
+        dataframe:pd.DataFrame,
+        authorColumn:str = 'authors',
+        pubIDColumn:str = "pubID",
+        yearColumn:str = 'year',
         debug=False
     ):
         self.dataframe = dataframe
@@ -299,22 +299,15 @@ class LinksOverTime():
         ngramdict = {
             y:x for x,y in enumerate(list(ngrams), start=max(self.nodeMap.values()) + 1)
         }
-        
-        # for ngramval in ngrams:
-        #    if ngramval not in self.nodeMap.keys():
-        #        self.nodeMap.update({ngramval: max(self.nodeMap.values()) + 1}) 
-
         self.nodeMap.update(ngramdict)
-        if self.debug is True:
-            print(
-                '\tDone ngrams.\n\tNumber of vertices {0}'.format(
-                    max(self.nodeMap.values())
-                )
-            )
         print(f"Done building node register in {(time.time() - starttime)/60:.2f} minutes.")
         return
 
-    def writeLinks(self, sl, scorePath, scoreLimit, normalize, outpath='./', recreate=False):
+    def writeLinks(
+        self, sl, scorePath:str, scoreLimit:float, normalize:bool,
+        coauthorValue: float = 0.0, authorValue: float = 0.0,
+        outpath:str = './', recreate: bool = False
+    ):
         """Write multilayer links to file in Pajek format."""
         slicedataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
         filePath = outpath + 'multilayerPajek_{0}.net'.format(sl[-1])
@@ -340,7 +333,10 @@ class LinksOverTime():
 
         # Sets the default value for person to person and person to publication edges
         # TODO: This should be configurable and different for paper to person, and person to person edges
-        personLinkVal = ngramdataframe[2].median()
+        if coauthorValue is 0.0:
+            coauthorValue = ngramdataframe[2].median()
+        if authorValue is 0.0:
+            authorValue = ngramdataframe[2].median()
 
         authorList = [
                     x for y in [
@@ -378,13 +374,13 @@ class LinksOverTime():
                 if len(authors) >= 2:
                     for pair in combinations(authors, 2):
                         file.write(
-                            f'1 {slicenodemap[pair[0]]} 1 {slicenodemap[pair[1]]} {personLinkVal}\n'
+                            f'1 {slicenodemap[pair[0]]} 1 {slicenodemap[pair[1]]} {coauthorValue}\n'
                         )
                 for author in authors:
                     try:
                         authNr = self.nodeMap[author]
                         file.write(
-                            f'1 {authNr} 2 {paperNr} {personLinkVal}\n'
+                            f'1 {authNr} 2 {paperNr} {authorValue}\n'
                         )
                     except KeyError:
                         raise
@@ -399,7 +395,8 @@ class LinksOverTime():
                         print(ngramrow[1])
                         raise
 
-    def run(self, windowsize:int = 3, normalize:bool = True, recreate:bool = False, 
+    def run(self, windowsize:int = 3, normalize:bool = True, 
+        coauthorValue: float = 0.0, authorValue: float = 0.0, recreate:bool = False, 
         scorePath:str = './', outPath:str = './', scoreLimit:float = 0.1
     ):
         """Create data for all slices. 
@@ -415,4 +412,5 @@ class LinksOverTime():
         self.createNodeRegister(scorePath, scoreLimit)
         for sl,score in tqdm(zip(slices, scores), leave=False, position=0):
             self.writeLinks(sl, os.path.join(scorePath, score), scoreLimit, normalize,
-                            outpath=outPath, recreate=recreate)
+                coauthorValue, authorValue, outpath=outPath, recreate=recreate
+            )
