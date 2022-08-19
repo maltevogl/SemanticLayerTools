@@ -96,7 +96,7 @@ class CalculateScores():
             slices.append(x)
         return slices
 
-    def getTermPatterns(self, year, dataframe, useSpacy=False, tokenMinLength=2):
+    def getTermPatterns(self, year, dataframe, useSpacy=False, nlp=False, tokenMinLength=2):
         """Create dictionaries of occuring ngrams."""
         self.counts[year] = {}
         self.outputDict[year] = {}
@@ -185,7 +185,8 @@ class CalculateScores():
                 year=year,
                 dataframe=dataframe,
                 tokenMinLength=tokenMinLength,
-                useSpacy=useSpacy
+                useSpacy=useSpacy,
+                nlp=nlp
             )
             uniqueNGrams = []
             for key in self.counts[year].keys():
