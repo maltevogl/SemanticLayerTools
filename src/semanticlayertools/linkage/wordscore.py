@@ -111,7 +111,8 @@ class CalculateScores():
                     sentpos = []
                     for token in sent:
                         if token.tag_ in pos_tag:
-                            sentpos.append(token.lemma_)
+                            if len(token.lemma_ ) >tokenMinLength:
+                                sentpos.append(token.lemma_)
                     sentList.append(sentpos)
 
                 for possent in sentList:
