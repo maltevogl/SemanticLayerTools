@@ -7,6 +7,7 @@ from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import nltk
+import spacy
 
 try:
     nltk.pos_tag(nltk.word_tokenize('This is a test sentence.'))
@@ -95,25 +96,44 @@ class CalculateScores():
             slices.append(x)
         return slices
 
-    def getTermPatterns(self, year, dataframe, tokenMinLength=2):
+    def getTermPatterns(self, year, dataframe, useSpacy=False, tokenMinLength=2):
         """Create dictionaries of occuring ngrams."""
         self.counts[year] = {}
         self.outputDict[year] = {}
         allNGrams = {x: [] for x in range(self.ngramStart, self.ngramEnd + 1, 1)}
         pos_tag = ["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"]
         for _, row in tqdm(dataframe.iterrows(), leave=False):
-            tokens = nltk.word_tokenize(row[self.textCol])
-            pos = nltk.pos_tag(tokens)
-            nnJJtokens = [
-                x[0].lower() for x in pos if x[1] in pos_tag and len(x[0]) > tokenMinLength
-            ]
-            tempNGram = []
-            for i in range(self.ngramStart, self.ngramEnd + 1, 1):
-                val = allNGrams[i]
-                newngrams = list(nltk.ngrams(nnJJtokens, i))
-                val.extend(newngrams)
-                tempNGram.extend(newngrams)
-                allNGrams.update({i: val})
+            if useSpacy is True:
+                doc = nlp(row[self.textCol])
+                tempNGram = []
+                sentList = []
+                for sent in list(doc.sents):
+                    sentpos = []
+                    for token in sent:
+                        if token.tag_ in pos_tag:
+                            sentpos.append(token.lemma_)
+                    sentList.append(sentpos)
+
+                for possent in sentList:
+                    for i in range(self.ngramStart, self.ngramEnd + 1, 1):
+                        val = allNGrams[i]
+                        newngrams = list(nltk.ngrams(possent, i))
+                        val.extend(newngrams)
+                        tempNGram.extend(newngrams)
+                        allNGrams.update({i: val})
+            else:
+                tokens = nltk.word_tokenize(row[self.textCol])
+                pos = nltk.pos_tag(tokens)
+                nnJJtokens = [
+                    x[0].lower() for x in pos if x[1] in pos_tag and len(x[0]) > tokenMinLength
+                ]
+                tempNGram = []
+                for i in range(self.ngramStart, self.ngramEnd + 1, 1):
+                    val = allNGrams[i]
+                    newngrams = list(nltk.ngrams(nnJJtokens, i))
+                    val.extend(newngrams)
+                    tempNGram.extend(newngrams)
+                    allNGrams.update({i: val})
             self.outputDict[year][row[self.pubIDCol]] = tempNGram
         allgrams = [x for y in [y for x, y in allNGrams.items()] for x in y]
         for key, value in allNGrams.items():
@@ -140,11 +160,13 @@ class CalculateScores():
 
     def run(
         self, windowsize:int = 3, write:bool = False, outpath:str = './', 
-        recreate:bool = False, tokenMinLength:int = 2, 
+        recreate:bool = False, tokenMinLength:int = 2, useSpacy:bool = False, 
         limitCPUs:bool = True
     ):
         """Get score for all documents."""
         starttime = time.time()
+        if useSpacy is True:
+            nlp = spacy.load("en_core_web_lg")
         print(f"Got data for {self.baseDF[self.yearCol].min()} to {self.baseDF[self.yearCol].max()}.\n\tCreating slices.")
         for timeslice in self._createSlices(windowsize):
             dataframe = self.baseDF[self.baseDF[self.yearCol].isin(timeslice)]
@@ -162,7 +184,8 @@ class CalculateScores():
             self.getTermPatterns(
                 year=year,
                 dataframe=dataframe,
-                tokenMinLength=tokenMinLength
+                tokenMinLength=tokenMinLength,
+                useSpacy=useSpacy
             )
             uniqueNGrams = []
             for key in self.counts[year].keys():
