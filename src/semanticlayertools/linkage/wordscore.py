@@ -215,7 +215,6 @@ class CalculateScores():
                 useSpacy=useSpacy,
                 nlp=nlp
             )
-            self.getTfiDF(year)
             uniqueNGrams = []
             for key in self.counts[year].keys():
                 uniqueNGrams.extend(self.counts[year][key])
@@ -247,6 +246,7 @@ class CalculateScores():
                         print(elem)
                         raise
                 self.outputDict[year].update({key: tmpList})
+            self.getTfiDF(year)
             if write is True:
                 if recreate is True:
                     try:
