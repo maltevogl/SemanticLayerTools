@@ -321,7 +321,7 @@ class LinksOverTime():
     def createNodeRegister(self, scorePath, scoreLimit):
         """Create multilayer node register for all time slices."""
         starttime = time.time()
-        scores = [x for x in os.listdir(scorePath) if x.endswith('.tsv')]
+        scores = [x for x in os.listdir(scorePath) if x.endswith('_score.tsv')]
         ngrams = [pd.read_csv(
                 scorePath + score,
                 sep='\t',
@@ -360,7 +360,7 @@ class LinksOverTime():
 
     def writeLinks(
         self, sl, scorePath:str, scoreLimit:float, normalize:bool,
-        coauthorValue: float = 0.0, authorValue: float = 0.0,
+        tfidfPath:str, coauthorValue: float = 0.0, authorValue: float = 0.0,
         outpath:str = './', recreate: bool = False
     ):
         """Write multilayer links to file in Pajek format."""
@@ -386,6 +386,11 @@ class LinksOverTime():
             ngramdataframe[2] = normVal
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
+        tfidfframe = pd.read_csv(
+            tfidfPath, sep="\t", header=None
+        )
+        tfidfframe = tfidfframe.query("@tfidfframe[1].isin(@ngramdataframe[1].unique())")
+
         # Sets the default value for person to person and person to publication edges
         # TODO: This should be configurable and different for paper to person, and person to person edges
         if coauthorValue is 0.0:
@@ -400,7 +405,7 @@ class LinksOverTime():
                 ]
         authors = [x for x in set(authorList) if x]
         pubs = slicedataframe[self.pubIDCol].fillna('None').unique()
-        ngrams = ngramdataframe[1].unique()
+        ngrams = tfidfframe[1].unique()
 
         slicenodes = authors
         slicenodes.extend(pubs)
@@ -424,7 +429,7 @@ class LinksOverTime():
                 paper = row[self.pubIDCol]
                 if paper not in slicenodemap.keys():
                     print(f'Cannot find {paper}')
-                ngramsList = ngramdataframe.query("@ngramdataframe[0] == @paper")
+                ngramsList = tfidfframe.query("@tfidfframe[0] == @paper")
                 paperNr = slicenodemap[paper]
                 if len(authors) >= 2:
                     for pair in combinations(authors, 2):
@@ -463,9 +468,10 @@ class LinksOverTime():
         for each time slice is 1.0. Choose the score limit accordingly.
         """
         slices = self._createSlices(windowsize)
-        scores = sorted([x for x in os.listdir(scorePath) if x.endswith('.tsv')])
+        scores = sorted([x for x in os.listdir(scorePath) if x.endswith('_score.tsv')])
+        tfidfs = sorted([x for x in os.listdir(scorePath) if x.endswith('_tfidf.tsv')])
         self.createNodeRegister(scorePath, scoreLimit)
-        for sl,score in tqdm(zip(slices, scores), leave=False, position=0):
+        for sl,score, tfidf in tqdm(zip(slices, scores, tfidfs), leave=False, position=0):
             self.writeLinks(sl, os.path.join(scorePath, score), scoreLimit, normalize,
-                coauthorValue, authorValue, outpath=outPath, recreate=recreate
+                os.path.join(scorePath, tfidf), coauthorValue, authorValue, outpath=outPath, recreate=recreate
             )
