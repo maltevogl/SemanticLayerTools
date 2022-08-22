@@ -71,6 +71,7 @@ class CalculateScores():
         self.ngramStart = ngramMin
         self.currentyear = ''
         self.scores = {}
+        self.ngramDocTfidf = {}
         self.outputDict = {}
         self.counts = {}
         self.debug = debug
@@ -96,6 +97,28 @@ class CalculateScores():
             slices.append(x)
         return slices
 
+    def getTfiDF(self, year):
+        ngramNDocs={}
+        self.ngramDocTfidf[year] = []
+        nDocs = len(self.outputDict[year].keys())
+        newval = []
+        for key, val in self.outputDict[year].items():
+            for elem in val:
+                newval.append((key, elem[0], elem[1]))
+        tempscore = pd.DataFrame(newval)
+
+        for ngram, g0 in tempscore.groupby(1):
+            ngramNDocs.update({ngram: len(g0[0].unique())})
+
+        for doi in tqdm(tempscore[0].unique(), leave=False):
+            ngramDict = tempscore[tempscore[0] == doi][1].value_counts().to_dict()
+            maxVal = max(ngramDict.values())
+            for key, val in ngramDict.items():
+                self.ngramDocTfidf[year].append(
+                    (doi, key, (0.5 + 0.5 * (val / maxVal)) * np.log(nDocs/ngramNDocs[key]))
+                )
+        return self.ngramDocTfidf
+
     def getTermPatterns(self, year, dataframe, useSpacy=False, nlp=False, tokenMinLength=2):
         """Create dictionaries of occuring ngrams."""
         self.counts[year] = {}
@@ -111,7 +134,7 @@ class CalculateScores():
                     sentpos = []
                     for token in sent:
                         if token.tag_ in pos_tag:
-                            if len(token.lemma_ ) >tokenMinLength:
+                            if len(token.lemma_ ) > tokenMinLength:
                                 sentpos.append(token.lemma_)
                     sentList.append(sentpos)
 
@@ -168,17 +191,20 @@ class CalculateScores():
         starttime = time.time()
         if useSpacy is True:
             nlp = spacy.load("en_core_web_lg")
+        else:
+            nlp = False
         print(f"Got data for {self.baseDF[self.yearCol].min()} to {self.baseDF[self.yearCol].max()}.\n\tCreating slices.")
         for timeslice in self._createSlices(windowsize):
             dataframe = self.baseDF[self.baseDF[self.yearCol].isin(timeslice)]
             year = timeslice[-1]
             self.scores.update({year: {}})
             if write is True:
-                filePath = f'{outpath}{str(year)}.tsv'
-                if os.path.isfile(filePath):
+                filePath = f'{outpath}{str(year)}_score.tsv'
+                filePathTF = f'{outpath}{str(year)}_tfidf.tsv'
+                if os.path.isfile(filePath) or os.path.isfile(filePathTF):
                      if recreate is False:
                         raise IOError(
-                            f'File at {filePath} exists. Set recreate = True to overwrite.'
+                            f'File at {filePath} or {filePathTF} exists. Set recreate = True to overwrite.'
                         )
             if self.debug is True:
                 print(f"Creating ngram counts for {year}.")
@@ -189,6 +215,7 @@ class CalculateScores():
                 useSpacy=useSpacy,
                 nlp=nlp
             )
+            self.getTfiDF(year)
             uniqueNGrams = []
             for key in self.counts[year].keys():
                 uniqueNGrams.extend(self.counts[year][key])
@@ -221,22 +248,25 @@ class CalculateScores():
                         raise
                 self.outputDict[year].update({key: tmpList})
             if write is True:
-                filePath = f'{outpath}{str(year)}.tsv'
                 if recreate is True:
                     try:
                         os.remove(filePath)
+                        os.remove(filePathTF)
                     except FileNotFoundError:
                         pass
                 with open(filePath, 'a') as yearfile:
                     for pub in dataframe[self.pubIDCol].unique():
                         for elem in self.outputDict[year][pub]:
                             yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
+                with open(filePathTF, 'a') as yearfile2:
+                    for elem in self.ngramDocTfidf[year]:
+                        yearfile2.write(f'{elem[0]}\t{elem[1]}\t{elem[2]}\n')
                 if self.debug is True:
                     print(f'Done creating scores for {year}, written to {filePath}.')
         print(f'Done in {(time.time() - starttime)/60:.2f} minutes.')
         if write is True:
             return
-        return self.scores, self.outputDict
+        return self.ngramDocTfidf, self.scores, self.outputDict
 
 
 class LinksOverTime():

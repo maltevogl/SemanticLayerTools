@@ -31,7 +31,7 @@ class TestCalculateScores(unittest.TestCase):
          df, textColumn='text', pubIDColumn='nodeID',
          yearColumn="year")
         # self.scorePattern = self.scoreinit.getTermPatterns(1955, df)
-        self.scoreOut, _ = self.scoreinit.run()
+        self.tfidfOut, self.scoreOut, _ = self.scoreinit.run()
         # print(self.scoreOut)
 
     def test_scoring(self):
