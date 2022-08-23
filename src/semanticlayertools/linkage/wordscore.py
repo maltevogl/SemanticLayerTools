@@ -392,11 +392,10 @@ class LinksOverTime():
         tfidfframe = tfidfframe.query("@tfidfframe[1].isin(@ngramdataframe[1].unique())")
 
         # Sets the default value for person to person and person to publication edges
-        # TODO: This should be configurable and different for paper to person, and person to person edges
         if coauthorValue is 0.0:
-            coauthorValue = ngramdataframe[2].median()
+            coauthorValue = tfidfframe[2].median()
         if authorValue is 0.0:
-            authorValue = ngramdataframe[2].median()
+            authorValue = tfidfframe[2].median()
 
         authorList = [
                     x for y in [
