@@ -53,7 +53,7 @@ class Clustering():
         self.recreate = recreate
         self.debug = debug
 
-    def calcInfomap(self, inFilePath):
+    def calcInfomap(self, inFilePath, writeStates=False, depthLevel=1):
         """Calculate clusters for one pajek file.
 
         Writes found cluster (i.e. module) information in CLU and FlowTree file
@@ -83,7 +83,7 @@ class Clustering():
                 os.remove(ftreeFilePath)
         self.infomult.read_file(inFilePath)
         self.infomult.run()
-        self.infomult.write_clu(cluFilePath)
+        self.infomult.write_clu(cluFilePath, states=writeStates, depth_level=depthLevel)
         self.infomult.write_flow_tree(ftreeFilePath)
         if self.debug is True:
             print(
@@ -92,10 +92,10 @@ class Clustering():
             print("\tDone: Slice {0}!".format(year))
         return
 
-    def run(self):
+    def run(self, states=False, depth=1):
         """Calculate infomap clustering for all pajek files in input path."""
         pajekFiles = sorted(
             [self.inpath + x for x in os.listdir(self.inpath) if x.endswith('.net')]
         )
         for file in tqdm(pajekFiles):
-            self.calcInfomap(inFilePath=file)
+            self.calcInfomap(inFilePath=file, writeStates=states, depthLevel=depth)
