@@ -398,10 +398,10 @@ class LinksOverTime():
             authorValue = tfidfframe[2].median()
 
         authorList = [
-                    x for y in [
-                        z.split(';') for z in slicedataframe[self.authorCol].values
-                    ] for x in y
-                ]
+            x for y in [
+                z.split(';') for z in slicedataframe[self.authorCol].values
+            ] for x in y
+        ]
         authors = [x for x in set(authorList) if x]
         pubs = slicedataframe[self.pubIDCol].fillna('None').unique()
         ngrams = tfidfframe[1].unique()
@@ -446,9 +446,9 @@ class LinksOverTime():
                 for _, ngramrow in ngramsList.iterrows():
                     try:
                         ngramNr = self.nodeMap[ngramrow[1]]
-                        weight = ngramrow[2]
+                        # weight = ngramrow[2]
                         file.write(
-                            f'2 {paperNr} 3 {ngramNr} {weight:.2f}\n'
+                            f'2 {paperNr} 3 {ngramNr} {ngramrow[2]:.2f}\n'
                         )
                     except KeyError:
                         print(ngramrow[1])
