@@ -73,17 +73,24 @@ class Clustering():
         year = re.findall(r'\d{4}', filename)[0]
         cluFilePath = f'{self.outpath}slice_{year}.clu'
         ftreeFilePath = f'{self.outpath}slice_{year}.ftree'
+        stateFilePath = f'{self.outpath}slice_{year}.net'
         if os.path.isfile(cluFilePath) or os.path.isfile(ftreeFilePath):
             if self.recreate is False:
                 raise OSError(
                     f'Files at {cluFilePath} or {ftreeFilePath} exists. Set recreate = True to rewrite files.'
                 )
             if self.recreate is True:
-                os.remove(cluFilePath)
-                os.remove(ftreeFilePath)
+                try:
+                    os.remove(cluFilePath)
+                    os.remove(ftreeFilePath)
+                    os.remove(stateFilePath)
+                except FileNotFoundError:
+                    pass
         self.infomult.read_file(inFilePath)
         self.infomult.run()
         self.infomult.write_clu(cluFilePath, states=writeStates, depth_level=depthLevel)
+        if writeStates is True:
+            self.infomult.write_state_network(stateFilePath)
         self.infomult.write_flow_tree(ftreeFilePath)
         if self.debug is True:
             print(
