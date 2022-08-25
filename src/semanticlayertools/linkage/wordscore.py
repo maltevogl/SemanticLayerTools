@@ -6,34 +6,21 @@ from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-import nltk
 import spacy
-
-try:
-    nltk.pos_tag(nltk.word_tokenize('This is a test sentence.'))
-except LookupError:
-    print('Installing nltk perceptron tagger.')
-    nltk.download('averaged_perceptron_tagger')
 
 
 class CalculateScores():
     """Calculates ngram scores for documents.
-
-    Considered parts of speech are (see `nltk` docs for details)
-        - Nouns: 'NN', 'NNS', 'NNP', 'NNPS'
-        - Adjectives: 'JJ', 'JJR', 'JJS'
 
     All texts of the corpus are tokenized and POS tags are generated.
     A global dictionary of counts of different ngrams is build in `counts`.
     The ngram relations of every text are listed in `outputDict`.
 
     Scoring is based on counts of occurances of different words left and right of each single
-    token in each ngram, weighted by ngram size, for details see reference.
+    token in each ngram, weighted by ngram size, for details see reference. #FIXME 
 
     :param sourceDataframe: Dataframe containing the basic corpus
     :type sourceDataframe: class:`pandas.DataFrame`
-    :param textColumn: Column name to use for ngram calculation
-    :type textColumn: str
     :param pubIDColumn: Column name to use for publication identification (assumend to be unique)
     :type pubIDColumn: str
     :param yearColumn: Column name for temporal ordering publications, used during writing the scoring files
@@ -53,23 +40,18 @@ class CalculateScores():
     def __init__(
         self,
         sourceDataframe,
-        textColumn:str = "text",
         pubIDColumn:str = "pubID",
         yearColumn:str = 'year',
-        ngramMax:int = 5,
-        ngramMin:int = 2,
+        tokenColumn:str='tokens',
         debug:bool = False
     ):
 
         self.baseDF = sourceDataframe
-        self.textCol = textColumn
         self.pubIDCol = pubIDColumn
         self.yearCol = yearColumn
-        self.ngramEnd = ngramMax
-        if ngramMin > 2:
-            raise ValueError('The minimal ngram size has to be either 1 or 2!')
-        self.ngramStart = ngramMin
+        self.tokenColumn = tokenColumn
         self.currentyear = ''
+        self.allNGrams = {}
         self.scores = {}
         self.ngramDocTfidf = {}
         self.outputDict = {}
@@ -119,49 +101,24 @@ class CalculateScores():
                 )
         return self.ngramDocTfidf
 
-    def getTermPatterns(self, year, dataframe, useSpacy=False, nlp=False, tokenMinLength=2):
+    def getTermPatterns(self, year, dataframe):
         """Create dictionaries of occuring ngrams."""
         self.counts[year] = {}
         self.outputDict[year] = {}
-        allNGrams = {x: [] for x in range(self.ngramStart, self.ngramEnd + 1, 1)}
-        pos_tag = ["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"]
+        self.allNGrams = {}
         for _, row in tqdm(dataframe.iterrows(), leave=False):
-            if useSpacy is True:
-                doc = nlp(row[self.textCol])
-                tempNGram = []
-                sentList = []
-                for sent in list(doc.sents):
-                    sentpos = []
-                    for token in sent:
-                        if token.tag_ in pos_tag:
-                            if len(token.lemma_ ) > tokenMinLength:
-                                sentpos.append(token.lemma_)
-                    sentList.append(sentpos)
-
-                for possent in sentList:
-                    for i in range(self.ngramStart, self.ngramEnd + 1, 1):
-                        val = allNGrams[i]
-                        newngrams = list(nltk.ngrams(possent, i))
-                        val.extend(newngrams)
-                        tempNGram.extend(newngrams)
-                        allNGrams.update({i: val})
-            else:
-                tokens = nltk.word_tokenize(row[self.textCol])
-                pos = nltk.pos_tag(tokens)
-                nnJJtokens = [
-                    x[0].lower() for x in pos if x[1] in pos_tag and len(x[0]) > tokenMinLength
-                ]
-                tempNGram = []
-                for i in range(self.ngramStart, self.ngramEnd + 1, 1):
-                    val = allNGrams[i]
-                    newngrams = list(nltk.ngrams(nnJJtokens, i))
-                    val.extend(newngrams)
-                    tempNGram.extend(newngrams)
-                    allNGrams.update({i: val})
-            self.outputDict[year][row[self.pubIDCol]] = tempNGram
-        allgrams = [x for y in [y for x, y in allNGrams.items()] for x in y]
-        for key, value in allNGrams.items():
-            self.counts[year][key] = dict(Counter(value))
+            self.outputDict[year].update(
+                {row[self.pubIDCol]:[tuple(x) for x in row[self.tokenColumn]]}
+            )
+            for elem in row[self.tokenColumn]:
+                try:
+                    val = self.allNGrams[len(elem)]
+                except KeyError:
+                    val = []
+                val.append(elem)
+                self.allNGrams.update({len(elem):val})
+        for key, value in self.allNGrams.items():
+            self.counts[year][key] = dict(Counter([tuple(x) for x in value]))
 
     def getScore(self, target):
         """Calculate ngram score."""
@@ -184,19 +141,15 @@ class CalculateScores():
 
     def run(
         self, windowsize:int = 3, write:bool = False, outpath:str = './', 
-        recreate:bool = False, tokenMinLength:int = 2, useSpacy:bool = False, 
-        limitCPUs:bool = True
+        recreate:bool = False, tokenMinCount=5, limitCPUs:bool = True
     ):
         """Get score for all documents."""
         starttime = time.time()
-        if useSpacy is True:
-            nlp = spacy.load("en_core_web_lg")
-        else:
-            nlp = False
-        print(f"Got data for {self.baseDF[self.yearCol].min()} to {self.baseDF[self.yearCol].max()}.\n\tCreating slices.")
+        print(f"Got data for {self.baseDF[self.yearCol].min()} to {self.baseDF[self.yearCol].max()}, starting calculations.")
         for timeslice in self._createSlices(windowsize):
             dataframe = self.baseDF[self.baseDF[self.yearCol].isin(timeslice)]
             year = timeslice[-1]
+            self.currentyear = year
             self.scores.update({year: {}})
             if write is True:
                 filePath = f'{outpath}{str(year)}_score.tsv'
@@ -211,28 +164,30 @@ class CalculateScores():
             self.getTermPatterns(
                 year=year,
                 dataframe=dataframe,
-                tokenMinLength=tokenMinLength,
-                useSpacy=useSpacy,
-                nlp=nlp
             )
             uniqueNGrams = []
             for key in self.counts[year].keys():
-                uniqueNGrams.extend(self.counts[year][key])
+                tempDict = {x:y for x,y in self.counts[year][key].items() if y > tokenMinCount}
+                self.counts[year].update(
+                    {key:tempDict}
+                )
+                uniqueNGrams.extend(list(tempDict.keys()))
             if self.debug is True:
                 print(
-                    f'Found {len(uniqueNGrams)} unique {self.ngramStart} to {self.ngramEnd}-grams.')
+                    f'\tFound {len(uniqueNGrams)} unique n-grams with at least {tokenMinCount} occurances.')
             if limitCPUs is True:
                 ncores = int(cpu_count() * 1 / 4)
             else:
                 ncores = cpu_count() - 2
             if self.debug is True:
-                print(f'Starting calculation of scores for {year}.')
+                print(f'\tStarting calculation of scores for {year}.')
             pool = Pool(ncores)
             chunk_size = int(len(uniqueNGrams) / ncores)
+            if self.debug is True:
+                print(f"\tCalculated chunk size is {chunk_size}.")
             batches = [
                 list(uniqueNGrams)[i:i + chunk_size] for i in range(0, len(uniqueNGrams), chunk_size)
             ]
-            self.currentyear = year
             ncoresResults = pool.map(self._calcBatch, batches)
             results = [x for y in ncoresResults for x in y]
             for elem in results:
@@ -240,12 +195,15 @@ class CalculateScores():
             for key, val in self.outputDict[year].items():
                 tmpList = []
                 for elem in val:
-                    try:
-                        tmpList.append([elem, self.scores[year][elem]])
-                    except TypeError:
-                        print(elem)
-                        raise
+                    if elem in uniqueNGrams:
+                        try:
+                            tmpList.append([elem, self.scores[year][elem]])
+                        except TypeError:
+                            print(elem)
+                            raise
                 self.outputDict[year].update({key: tmpList})
+            if self.debug is True:
+                print("Start tfidf calculations.")
             self.getTfiDF(year)
             if write is True:
                 if recreate is True:
@@ -262,7 +220,7 @@ class CalculateScores():
                     for elem in self.ngramDocTfidf[year]:
                         yearfile2.write(f'{elem[0]}\t{elem[1]}\t{elem[2]}\n')
                 if self.debug is True:
-                    print(f'Done creating scores for {year}, written to {filePath}.')
+                    print(f'\tDone creating scores for {year}, written to {filePath}.')
         print(f'Done in {(time.time() - starttime)/60:.2f} minutes.')
         if write is True:
             return
@@ -392,9 +350,9 @@ class LinksOverTime():
         tfidfframe = tfidfframe.query("@tfidfframe[1].isin(@ngramdataframe[1].unique())")
 
         # Sets the default value for person to person and person to publication edges
-        if coauthorValue is 0.0:
+        if coauthorValue == 0.0:
             coauthorValue = tfidfframe[2].median()
-        if authorValue is 0.0:
+        if authorValue == 0.0:
             authorValue = tfidfframe[2].median()
 
         authorList = [
