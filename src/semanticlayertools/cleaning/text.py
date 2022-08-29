@@ -96,7 +96,7 @@ def tokenize(
                 if token.is_punct is True:
                     continue
             if len(token.lemma_) >= tokenMinLength:
-                sentPOS.append(token.lemma_)
+                sentPOS.append(token.lemma_.lower())
         sentList.append(sentPOS)
     for elem in sentList:
         for ngramLen in range(ngramRange[0], ngramRange[1] + 1, 1):
