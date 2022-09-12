@@ -57,6 +57,7 @@ def htmlTags(text):
 def tokenize(
     text, languageModel=nlp, ngramRange=(1,5), limitPOS=False, 
     excludeStopWords=False, excludePunctuation=False, excludeNumerical=False,
+    excludeNonAlphabetic=False,
     tokenMinLength=1, debug=False
 ):
     """Tokenize the provided text using the specified Spacy language model.
@@ -90,7 +91,10 @@ def tokenize(
                 if token.is_stop:
                     continue
             if excludeNumerical is True:
-                if token.is_digit:
+                if token.is_digit is True:
+                    continue
+            if excludeNonAlphabetic is True:
+                if not token.is_alpha is True:
                     continue
             if excludePunctuation is True:
                 if token.is_punct is True:
