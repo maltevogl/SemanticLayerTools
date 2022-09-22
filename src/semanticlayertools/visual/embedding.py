@@ -59,7 +59,7 @@ def createTopicEmbedding(
     ).fit_transform(embedded)
     time3 = time.time()
     if debug is True:
-        print(f"Done embedding in {time3-time2} sec.")
+        print(f"Done mapping to 2D in {time3-time2} sec.")
     basedata.insert(0, f'x', embedded_2D[:, 0])
     basedata.insert(0, f'y', embedded_2D[:, 1])
 
@@ -68,7 +68,9 @@ def createTopicEmbedding(
         doc = textacy.make_spacy_doc((row["text"], {"idx": row["idx"]}), 'en_core_web_lg')
         records.append(doc)
     corpus = textacy.Corpus("en_core_web_lg", data=records)
-
+    time4 = time.time()
+    if debug is True:
+        print(f"Done building corpus in {time4-time3} sec.")
     if isinstance(useStopList, list):
         STOPLIST=useStopList
     else:
@@ -90,6 +92,9 @@ def createTopicEmbedding(
 
     topicmodel = textacy.tm.TopicModel("nmf", 15)
     topicmodel.fit(doc_term_matrix)
+    time5 = time.time()
+    if debug is True:
+        print(f"Done fitting topics in {time5-time4} sec.")
 
     topics = {}
     for topic_idx, top_terms in topicmodel.top_topic_terms(
@@ -104,7 +109,9 @@ def createTopicEmbedding(
     sizeDict = {key:0.5 + 100/val for key, val in basedata.topic.value_counts().to_dict().items()}
     sizes = basedata.topic.apply(lambda x: sizeDict[x])
     basedata.insert(4,'sizes', sizes)
-
+    time6 = time.time()
+    if debug is True:
+        print(f"Done in {time5-starttime} sec total.")
     return topics, basedata
 
 
