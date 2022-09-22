@@ -19,12 +19,13 @@ from ..cleaning.text import htmlTags
 
 
 def createTopicEmbedding(
-    dataframePath: str, textColumn:str = 'title', idColumn:str = "nodeID", yearColumn:str = 'year', targetLanguage:str = "en",
+    dataframePath: str, year:str, textColumn:str = 'title', idColumn:str = "nodeID", yearColumn:str = 'year', targetLanguage:str = "en",
     device:str = "cuda", nNei:int = 20, nComp:int = 2, metric:str="cosine", useStopList = False, denseMap:bool = False, debug:bool=True
 ):
     starttime = time.time()
     model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
     dfTemp = pd.read_json(dataframePath, lines=True)
+    dfTemp.insert(0, 'year', year)
     texts = []
     for idx, row in tqdm(dfTemp.iterrows()):
         if type(row[textColumn])==list:
