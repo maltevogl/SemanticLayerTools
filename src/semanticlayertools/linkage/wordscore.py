@@ -9,6 +9,235 @@ import pandas as pd
 import spacy
 
 
+class CalculateSurprise():
+    """Calculates surprise scores for documents.
+    """
+
+    def __init__(
+        self,
+        sourceDataframe,
+        pubIDColumn:str = "pubID",
+        yearColumn:str = 'year',
+        tokenColumn:str='tokens',
+        debug:bool = False
+    ):
+
+        self.baseDF = sourceDataframe
+        self.pubIDCol = pubIDColumn
+        self.yearCol = yearColumn
+        self.tokenColumn = tokenColumn
+        self.currentyear = ''
+        self.surprise = {}
+        self.OneGramCounts = {}
+        self.TwoGramCounts = {}
+        self.sorted4grams = {}
+        self.sorted5grams = {}
+        self.ngramDocTfidf = {}
+        self.outputDict = {}
+        self.counts = {}
+        self.debug = debug
+
+    def _window(self, seq, n):
+        """Return a sliding window (of width n) over data from the iterable.
+
+        s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...
+        """
+        it = iter(seq)
+        result = tuple(islice(it, n))
+        if len(result) == n:
+            yield result
+        for elem in it:
+            result = result[1:] + (elem,)
+            yield result
+
+
+    def _createSlices(self, windowsize):
+        slices = []
+        years = sorted(self.baseDF[self.yearCol].unique())
+        for x in self._window(years, windowsize):
+            slices.append(x)
+        return slices
+
+    def getTfiDF(self, year):
+        ngramNDocs={}
+        self.ngramDocTfidf[year] = []
+        nDocs = len(self.outputDict[year].keys())
+        newval = []
+        for key, val in self.outputDict[year].items():
+            for elem in val:
+                newval.append((key, elem[0], elem[1]))
+        tempscore = pd.DataFrame(newval)
+
+        for ngram, g0 in tempscore.groupby(1):
+            ngramNDocs.update({ngram: len(g0[0].unique())})
+
+        for doi in tqdm(tempscore[0].unique(), leave=False):
+            ngramDict = tempscore[tempscore[0] == doi][1].value_counts().to_dict()
+            maxVal = max(ngramDict.values())
+            for key, val in ngramDict.items():
+                self.ngramDocTfidf[year].append(
+                    (doi, key, (0.5 + 0.5 * (val / maxVal)) * np.log(nDocs/ngramNDocs[key]))
+                )
+        return self.ngramDocTfidf
+
+    def getNgramPatterns(self, year, dataframe, ngramLimit=2):
+        """Create dictionaries of occuring ngrams."""
+        self.counts[year] = {}
+        self.outputDict[year] = {}
+        allNGrams = {}
+        for _, row in tqdm(dataframe.iterrows(), leave=False):
+            self.outputDict[year].update(
+                {row[self.pubIDCol]:[tuple(x) for x in row[self.tokenColumn] if len(x) <= ngramLimit]}
+            )
+            for elem in row[self.tokenColumn]:
+                try:
+                    val = allNGrams[len(elem)]
+                except KeyError:
+                    val = []
+                val.append(elem)
+                allNGrams.update({len(elem):val})
+
+        self.OneGramCounts = dict(Counter(allNGrams[1]).most_common())
+        self.TwoGramCounts = dict(Counter(allNGrams[2]).most_common())
+
+        all4grams = allNGrams[4]
+        all5grams = allNGrams[5]
+        all4grams.sort(key=lambda x: x[3])
+        all5grams.sort(key=lambda x: (x[3],x[4]))
+        
+        self.sorted4grams = [list(group) for key, group in groupby(all4grams, itemgetter(3))]
+        self.sorted5grams = [list(group) for key, group in groupby(all5grams, itemgetter(3,4))]
+
+    def getSurprise(self, target:tuple, ngramNr:int = 1, minNgramNr:int = 5):
+        """Calculate surprise score."""
+        if ngramNr == 1:
+            tokName = target[0][3]
+            if OneGramCounts[tokName] < minNgramNr:
+                return {tokName: 0}
+        elif ngramNr == 2:
+            tokList = [target[0][3], target[0][4]]
+            tokName = ' '.join(tokList)
+            if TwoGramCounts[tuple(tokList)] < minNgramNr:
+                return {tokName: 0}
+        basisLen = len(set(target))
+        counts = dict(Counter(target).most_common())
+        probList = []
+        for key, val in counts.items():
+            probList.append(
+                -math.log(val/basisLen, 2)
+            )
+        surpriseVal = 1/basisLen * sum(probList)
+        return {tokName: surpriseVal}
+
+    def _calcBatch1(self, batch):
+        res = []
+        for elem in tqdm(batch, leave=False):
+            res.append(self.getSurprise(elem, ngramNr=1))
+        return res
+
+    def _calcBatch2(self, batch):
+        res = []
+        for elem in tqdm(batch, leave=False):
+            res.append(self.getSurprise(elem, ngramNr=2))
+        return res
+
+    def run(
+        self, windowsize:int = 3, write:bool = False, outpath:str = './', 
+        recreate:bool = False, maxNgram:int = 2, tokenMinCount:int = 5, limitCPUs:bool = True
+    ):
+        """Get score for all documents."""
+        starttime = time.time()
+        print(f"Got data for {self.baseDF[self.yearCol].min()} to {self.baseDF[self.yearCol].max()}, starting calculations.")
+        for timeslice in self._createSlices(windowsize):
+            dataframe = self.baseDF[self.baseDF[self.yearCol].isin(timeslice)]
+            year = timeslice[-1]
+            self.currentyear = year
+            self.surprise.update({year: {}})
+            if write is True:
+                filePath = f'{outpath}{str(year)}_surprise.tsv'
+                filePathTF = f'{outpath}{str(year)}_tfidf.tsv'
+                if os.path.isfile(filePath) or os.path.isfile(filePathTF):
+                     if recreate is False:
+                        raise IOError(
+                            f'File at {filePath} or {filePathTF} exists. Set recreate = True to overwrite.'
+                        )
+            if self.debug is True:
+                print(f"Creating ngram counts for {year}.")
+            self.getTermPatterns(
+                year=year,
+                dataframe=dataframe,
+                ngramLimit=maxNgram
+            )
+            if self.debug is True:
+                print(
+                    f'\tFound {len(self.OneGramCounts.keys())} unique 1-grams.')
+            if limitCPUs is True:
+                ncores = int(cpu_count() * 1 / 4)
+            else:
+                ncores = cpu_count() - 2
+            if self.debug is True:
+                print(f'\tStarting calculation of surprise for {year}.')
+            pool = Pool(ncores)
+            # Calculate 1-gram surprises
+            chunk_size = int(len(self.sorted4grams) / ncores)
+            if self.debug is True:
+                print(f"\tCalculated chunk size is {chunk_size}.")
+            batches = [
+                list(self.sorted4grams)[i:i + chunk_size] for i in range(0, len(self.sorted4grams), chunk_size)
+            ]
+            ncoresResults = pool.map(self._calcBatch1, batches)
+            results = [x for y in ncoresResults for x in y]
+            for elem in results:
+                self.surprise[year].update(elem)
+            # Calculate 2-gram surprises
+            chunk_size = int(len(self.sorted5grams) / ncores)
+            if self.debug is True:
+                print(f"\tCalculated chunk size is {chunk_size}.")
+            batches = [
+                list(self.sorted5grams)[i:i + chunk_size] for i in range(0, len(self.sorted5grams), chunk_size)
+            ]
+            ncoresResults = pool.map(self._calcBatch2, batches)
+            results2 = [x for y in ncoresResults for x in y]
+            for elem in results2:
+                self.surprise[year].update(elem)
+            # Link to pulications
+            for key, val in self.outputDict[year].items():
+                tmpList = []
+                for elem in val:
+                    if elem in uniqueNGrams:
+                        try:
+                            tmpList.append([elem, self.surprise[year][elem]])
+                        except TypeError:
+                            print(elem)
+                            raise
+                self.outputDict[year].update({key: tmpList})
+            if self.debug is True:
+                print("Start tfidf calculations.")
+            self.getTfiDF(year)
+            if write is True:
+                if recreate is True:
+                    try:
+                        os.remove(filePath)
+                        os.remove(filePathTF)
+                    except FileNotFoundError:
+                        pass
+                with open(filePath, 'a') as yearfile:
+                    for pub in dataframe[self.pubIDCol].unique():
+                        for elem in self.outputDict[year][pub]:
+                            yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
+                with open(filePathTF, 'a') as yearfile2:
+                    for elem in self.ngramDocTfidf[year]:
+                        yearfile2.write(f'{elem[0]}\t{elem[1]}\t{elem[2]}\n')
+                if self.debug is True:
+                    print(f'\tDone creating surprise scores for {year}, written to {filePath}.')
+        print(f'Done in {(time.time() - starttime)/60:.2f} minutes.')
+        if write is True:
+            return
+        return self.ngramDocTfidf, self.surprise, self.outputDict
+
+
+
+
 class CalculateScores():
     """Calculates ngram scores for documents.
 
