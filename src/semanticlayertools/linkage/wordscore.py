@@ -1,12 +1,13 @@
 import os
 import time
+import math
+from operator import itemgetter
 from collections import Counter
-from itertools import islice, combinations
+from itertools import islice, combinations, groupby
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-import spacy
 
 
 class CalculateSurprise():
@@ -16,10 +17,10 @@ class CalculateSurprise():
     def __init__(
         self,
         sourceDataframe,
-        pubIDColumn:str = "pubID",
-        yearColumn:str = 'year',
-        tokenColumn:str='tokens',
-        debug:bool = False
+        pubIDColumn: str = "pubID",
+        yearColumn: str = 'year',
+        tokenColumn: str = 'tokens',
+        debug: bool = False
     ):
 
         self.baseDF = sourceDataframe
@@ -50,7 +51,6 @@ class CalculateSurprise():
             result = result[1:] + (elem,)
             yield result
 
-
     def _createSlices(self, windowsize):
         slices = []
         years = sorted(self.baseDF[self.yearCol].unique())
@@ -59,7 +59,7 @@ class CalculateSurprise():
         return slices
 
     def getTfiDF(self, year):
-        ngramNDocs={}
+        ngramNDocs = {}
         self.ngramDocTfidf[year] = []
         nDocs = len(self.outputDict[year].keys())
         newval = []
@@ -76,7 +76,7 @@ class CalculateSurprise():
             maxVal = max(ngramDict.values())
             for key, val in ngramDict.items():
                 self.ngramDocTfidf[year].append(
-                    (doi, key, (0.5 + 0.5 * (val / maxVal)) * np.log(nDocs/ngramNDocs[key]))
+                    (doi, key, (0.5 + 0.5 * (val / maxVal)) * np.log(nDocs / ngramNDocs[key]))
                 )
         return self.ngramDocTfidf
 
@@ -87,7 +87,7 @@ class CalculateSurprise():
         allNGrams = {}
         for _, row in tqdm(dataframe.iterrows(), leave=False):
             self.outputDict[year].update(
-                {row[self.pubIDCol]:[tuple(x) for x in row[self.tokenColumn] if len(x) <= ngramLimit]}
+                {row[self.pubIDCol]: [x for x in row[self.tokenColumn] if len(x) <= ngramLimit]}
             )
             for elem in row[self.tokenColumn]:
                 try:
@@ -95,7 +95,7 @@ class CalculateSurprise():
                 except KeyError:
                     val = []
                 val.append(elem)
-                allNGrams.update({len(elem):val})
+                allNGrams.update({len(elem): val})
 
         self.OneGramCounts = dict(Counter(allNGrams[1]).most_common())
         self.TwoGramCounts = dict(Counter(allNGrams[2]).most_common())
@@ -103,30 +103,30 @@ class CalculateSurprise():
         all4grams = allNGrams[4]
         all5grams = allNGrams[5]
         all4grams.sort(key=lambda x: x[3])
-        all5grams.sort(key=lambda x: (x[3],x[4]))
-        
-        self.sorted4grams = [list(group) for key, group in groupby(all4grams, itemgetter(3))]
-        self.sorted5grams = [list(group) for key, group in groupby(all5grams, itemgetter(3,4))]
+        all5grams.sort(key=lambda x: (x[3], x[4]))
 
-    def getSurprise(self, target:tuple, ngramNr:int = 1, minNgramNr:int = 5):
+        self.sorted4grams = [list(group) for key, group in groupby(all4grams, itemgetter(3))]
+        self.sorted5grams = [list(group) for key, group in groupby(all5grams, itemgetter(3, 4))]
+
+    def getSurprise(self, target: tuple, ngramNr: int = 1, minNgramNr: int = 5):
         """Calculate surprise score."""
         if ngramNr == 1:
             tokName = target[0][3]
-            if OneGramCounts[tokName] < minNgramNr:
+            if self.OneGramCounts[tuple([tokName])] < minNgramNr:
                 return {tokName: 0}
         elif ngramNr == 2:
             tokList = [target[0][3], target[0][4]]
             tokName = ' '.join(tokList)
-            if TwoGramCounts[tuple(tokList)] < minNgramNr:
+            if self.TwoGramCounts[tuple(tokList)] < minNgramNr:
                 return {tokName: 0}
         basisLen = len(set(target))
         counts = dict(Counter(target).most_common())
         probList = []
         for key, val in counts.items():
             probList.append(
-                -math.log(val/basisLen, 2)
+                - math.log(val / basisLen, 2)
             )
-        surpriseVal = 1/basisLen * sum(probList)
+        surpriseVal = 1 / basisLen * sum(probList)
         return {tokName: surpriseVal}
 
     def _calcBatch1(self, batch):
@@ -142,8 +142,8 @@ class CalculateSurprise():
         return res
 
     def run(
-        self, windowsize:int = 3, write:bool = False, outpath:str = './', 
-        recreate:bool = False, maxNgram:int = 2, tokenMinCount:int = 5, limitCPUs:bool = True
+        self, windowsize: int = 3, write: bool = False, outpath: str = './',
+        recreate: bool = False, maxNgram: int = 2, tokenMinCount: int = 5, limitCPUs: bool = True
     ):
         """Get score for all documents."""
         starttime = time.time()
@@ -157,13 +157,13 @@ class CalculateSurprise():
                 filePath = f'{outpath}{str(year)}_surprise.tsv'
                 filePathTF = f'{outpath}{str(year)}_tfidf.tsv'
                 if os.path.isfile(filePath) or os.path.isfile(filePathTF):
-                     if recreate is False:
+                    if recreate is False:
                         raise IOError(
                             f'File at {filePath} or {filePathTF} exists. Set recreate = True to overwrite.'
                         )
             if self.debug is True:
                 print(f"Creating ngram counts for {year}.")
-            self.getTermPatterns(
+            self.getNgramPatterns(
                 year=year,
                 dataframe=dataframe,
                 ngramLimit=maxNgram
@@ -204,12 +204,11 @@ class CalculateSurprise():
             for key, val in self.outputDict[year].items():
                 tmpList = []
                 for elem in val:
-                    if elem in uniqueNGrams:
-                        try:
-                            tmpList.append([elem, self.surprise[year][elem]])
-                        except TypeError:
-                            print(elem)
-                            raise
+                    try:
+                        tmpList.append([elem, self.surprise[year][' '.join(elem)]])
+                    except TypeError:
+                        print(elem)
+                        raise
                 self.outputDict[year].update({key: tmpList})
             if self.debug is True:
                 print("Start tfidf calculations.")
@@ -236,8 +235,6 @@ class CalculateSurprise():
         return self.ngramDocTfidf, self.surprise, self.outputDict
 
 
-
-
 class CalculateScores():
     """Calculates ngram scores for documents.
 
@@ -246,7 +243,7 @@ class CalculateScores():
     The ngram relations of every text are listed in `outputDict`.
 
     Scoring is based on counts of occurances of different words left and right of each single
-    token in each ngram, weighted by ngram size, for details see reference. #FIXME 
+    token in each ngram, weighted by ngram size, for details see reference. #FIXME
 
     :param sourceDataframe: Dataframe containing the basic corpus
     :type sourceDataframe: class:`pandas.DataFrame`
@@ -269,10 +266,10 @@ class CalculateScores():
     def __init__(
         self,
         sourceDataframe,
-        pubIDColumn:str = "pubID",
-        yearColumn:str = 'year',
-        tokenColumn:str='tokens',
-        debug:bool = False
+        pubIDColumn: str = "pubID",
+        yearColumn: str = 'year',
+        tokenColumn: str = 'tokens',
+        debug: bool = False
     ):
 
         self.baseDF = sourceDataframe
@@ -300,7 +297,6 @@ class CalculateScores():
             result = result[1:] + (elem,)
             yield result
 
-
     def _createSlices(self, windowsize):
         slices = []
         years = sorted(self.baseDF[self.yearCol].unique())
@@ -309,7 +305,7 @@ class CalculateScores():
         return slices
 
     def getTfiDF(self, year):
-        ngramNDocs={}
+        ngramNDocs = {}
         self.ngramDocTfidf[year] = []
         nDocs = len(self.outputDict[year].keys())
         newval = []
@@ -326,7 +322,7 @@ class CalculateScores():
             maxVal = max(ngramDict.values())
             for key, val in ngramDict.items():
                 self.ngramDocTfidf[year].append(
-                    (doi, key, (0.5 + 0.5 * (val / maxVal)) * np.log(nDocs/ngramNDocs[key]))
+                    (doi, key, (0.5 + 0.5 * (val / maxVal)) * np.log(nDocs / ngramNDocs[key]))
                 )
         return self.ngramDocTfidf
 
@@ -337,7 +333,7 @@ class CalculateScores():
         self.allNGrams = {}
         for _, row in tqdm(dataframe.iterrows(), leave=False):
             self.outputDict[year].update(
-                {row[self.pubIDCol]:[tuple(x) for x in row[self.tokenColumn]]}
+                {row[self.pubIDCol]: [tuple(x) for x in row[self.tokenColumn]]}
             )
             for elem in row[self.tokenColumn]:
                 try:
@@ -345,7 +341,7 @@ class CalculateScores():
                 except KeyError:
                     val = []
                 val.append(elem)
-                self.allNGrams.update({len(elem):val})
+                self.allNGrams.update({len(elem): val})
         for key, value in self.allNGrams.items():
             self.counts[year][key] = dict(Counter([tuple(x) for x in value]))
 
@@ -359,7 +355,7 @@ class CalculateScores():
             valueList.append((lvalue + 1.0) * (rvalue + 1.0))
         factors = np.prod(valueList, dtype=np.float64)
         return {
-            target: 1.0/self.counts[self.currentyear][len(target)][target] * (factors) ** (1.0 / (2.0 * len(target)))
+            target: 1.0 / self.counts[self.currentyear][len(target)][target] * (factors) ** (1.0 / (2.0 * len(target)))
         }
 
     def _calcBatch(self, batch):
@@ -369,8 +365,8 @@ class CalculateScores():
         return res
 
     def run(
-        self, windowsize:int = 3, write:bool = False, outpath:str = './', 
-        recreate:bool = False, tokenMinCount=5, limitCPUs:bool = True
+        self, windowsize: int = 3, write: bool = False, outpath: str = './',
+        recreate: bool = False, tokenMinCount: int = 5, limitCPUs: bool = True
     ):
         """Get score for all documents."""
         starttime = time.time()
@@ -384,7 +380,7 @@ class CalculateScores():
                 filePath = f'{outpath}{str(year)}_score.tsv'
                 filePathTF = f'{outpath}{str(year)}_tfidf.tsv'
                 if os.path.isfile(filePath) or os.path.isfile(filePathTF):
-                     if recreate is False:
+                    if recreate is False:
                         raise IOError(
                             f'File at {filePath} or {filePathTF} exists. Set recreate = True to overwrite.'
                         )
@@ -396,9 +392,9 @@ class CalculateScores():
             )
             uniqueNGrams = []
             for key in self.counts[year].keys():
-                tempDict = {x:y for x,y in self.counts[year][key].items() if y > tokenMinCount}
+                tempDict = {x: y for x, y in self.counts[year][key].items() if y >= tokenMinCount}
                 self.counts[year].update(
-                    {key:tempDict}
+                    {key: tempDict}
                 )
                 uniqueNGrams.extend(list(tempDict.keys()))
             if self.debug is True:
@@ -414,11 +410,14 @@ class CalculateScores():
             chunk_size = int(len(uniqueNGrams) / ncores)
             if self.debug is True:
                 print(f"\tCalculated chunk size is {chunk_size}.")
-            batches = [
-                list(uniqueNGrams)[i:i + chunk_size] for i in range(0, len(uniqueNGrams), chunk_size)
-            ]
-            ncoresResults = pool.map(self._calcBatch, batches)
-            results = [x for y in ncoresResults for x in y]
+            if chunk_size > 0:
+                batches = [
+                    list(uniqueNGrams)[i:i + chunk_size] for i in range(0, len(uniqueNGrams), chunk_size)
+                ]
+                ncoresResults = pool.map(self._calcBatch, batches)
+                results = [x for y in ncoresResults for x in y]
+            else:
+                results = pool.map(self._calcBatch, uniqueNGrams)
             for elem in results:
                 self.scores[year].update(elem)
             for key, val in self.outputDict[year].items():
@@ -472,11 +471,11 @@ class LinksOverTime():
 
     def __init__(
         self,
-        dataframe:pd.DataFrame,
-        authorColumn:str = 'authors',
-        pubIDColumn:str = "pubID",
-        yearColumn:str = 'year',
-        debug=False
+        dataframe: pd.DataFrame,
+        authorColumn: str = 'authors',
+        pubIDColumn: str = "pubID",
+        yearColumn: str = 'year',
+        debug = False
     ):
         self.dataframe = dataframe
         self.authorCol = authorColumn
@@ -510,10 +509,10 @@ class LinksOverTime():
         starttime = time.time()
         scores = [x for x in os.listdir(scorePath) if x.endswith('_score.tsv')]
         ngrams = [pd.read_csv(
-                scorePath + score,
-                sep='\t',
-                header=None
-            ) for score in scores]
+            scorePath + score,
+            sep='\t',
+            header=None
+        ) for score in scores]
         ngramdataframe = pd.concat(ngrams)
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
@@ -539,16 +538,16 @@ class LinksOverTime():
             if pubval not in self.nodeMap.keys():
                 self.nodeMap.update({pubval: max(self.nodeMap.values()) + 1})
         ngramdict = {
-            y:x for x,y in enumerate(list(ngrams), start=max(self.nodeMap.values()) + 1)
+            y: x for x, y in enumerate(list(ngrams), start=max(self.nodeMap.values()) + 1)
         }
         self.nodeMap.update(ngramdict)
         print(f"Done building node register in {(time.time() - starttime)/60:.2f} minutes.")
         return
 
     def writeLinks(
-        self, sl, scorePath:str, scoreLimit:float, normalize:bool,
-        tfidfPath:str, coauthorValue: float = 0.0, authorValue: float = 0.0,
-        outpath:str = './', recreate: bool = False
+        self, sl, scorePath: str, scoreLimit: float, normalize: bool,
+        tfidfPath: str, coauthorValue: float = 0.0, authorValue: float = 0.0,
+        outpath: str = './', recreate: bool = False
     ):
         """Write multilayer links to file in Pajek format."""
         slicedataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
@@ -569,7 +568,7 @@ class LinksOverTime():
         )
         if normalize is True:
             maxval = ngramdataframe[2].max()
-            normVal = ngramdataframe[2]/maxval
+            normVal = ngramdataframe[2] / maxval
             ngramdataframe[2] = normVal
         ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
 
@@ -597,7 +596,7 @@ class LinksOverTime():
         slicenodes.extend(pubs)
         slicenodes.extend(ngrams)
 
-        slicenodemap = {x:y for x,y in self.nodeMap.items() if x in slicenodes}
+        slicenodemap = {x: y for x, y in self.nodeMap.items() if x in slicenodes}
 
         with open(filePath, 'a') as file:
             file.write("# A network in a general multilayer format\n")
@@ -641,15 +640,16 @@ class LinksOverTime():
                         print(ngramrow[1])
                         raise
 
-    def run(self, windowsize:int = 3, normalize:bool = True, 
-        coauthorValue: float = 0.0, authorValue: float = 0.0, recreate:bool = False, 
-        scorePath:str = './', outPath:str = './', scoreLimit:float = 0.1
+    def run(
+        self, windowsize: int = 3, normalize: bool = True,
+        coauthorValue: float = 0.0, authorValue: float = 0.0, recreate: bool = False,
+        scorePath: str = './', outPath: str = './', scoreLimit: float = 0.1
     ):
-        """Create data for all slices. 
-        
+        """Create data for all slices.
+       
         The slice window size needs to correspondent to the one used for calculating the scores to be
         consistent.
-        
+       
         Choose normalize=True (default) to normalize ngram weights. In this case the maximal score
         for each time slice is 1.0. Choose the score limit accordingly.
         """
@@ -657,7 +657,9 @@ class LinksOverTime():
         scores = sorted([x for x in os.listdir(scorePath) if x.endswith('_score.tsv')])
         tfidfs = sorted([x for x in os.listdir(scorePath) if x.endswith('_tfidf.tsv')])
         self.createNodeRegister(scorePath, scoreLimit)
-        for sl,score, tfidf in tqdm(zip(slices, scores, tfidfs), leave=False, position=0):
-            self.writeLinks(sl, os.path.join(scorePath, score), scoreLimit, normalize,
-                os.path.join(scorePath, tfidf), coauthorValue, authorValue, outpath=outPath, recreate=recreate
+        for sl, score, tfidf in tqdm(zip(slices, scores, tfidfs), leave=False, position=0):
+            self.writeLinks(
+                sl, os.path.join(scorePath, score), scoreLimit, normalize,
+                os.path.join(scorePath, tfidf), coauthorValue, authorValue, 
+                outpath=outPath, recreate=recreate
             )

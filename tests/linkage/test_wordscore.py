@@ -23,24 +23,22 @@ df = pd.concat(
 )
 
 year = df['date'].apply(lambda x: x[0][:4])
-df.insert(0,'year', year)
+df.insert(0, 'year', year)
 text = df['title'].apply(lambda x: x[0])
 df.insert(0, 'text', text)
 tokens = df.text.apply(lambda x: tokenize(x, languageModel=nlp))
 df.insert(0, 'tokens', tokens)
 
 
-
 class TestCalculateScores(unittest.TestCase):
 
     def setUp(self):
         self.scoreinit = CalculateScores(
-         df, tokenColumn='tokens', pubIDColumn='nodeID',
-         yearColumn="year")
-        # self.scorePattern = self.scoreinit.getTermPatterns(1955, df)
-        self.tfidfOut, self.scoreOut, _ = self.scoreinit.run()
-        # print(self.scoreOut)
+            df, tokenColumn='tokens', pubIDColumn='nodeID',
+            yearColumn="year"
+        )
+        self.tfidfOut, self.scoreOut, _ = self.scoreinit.run(tokenMinCount=1)
 
     def test_scoring(self):
-        scoreVal = self.scoreOut['1952'][('remark', 'composition')]
-        assert(1.0 < scoreVal < 2.0)
+        scoreVal = self.scoreOut['1952'][('remark', 'on', 'the', 'composition')]
+        assert 2.0 < scoreVal < 3.0

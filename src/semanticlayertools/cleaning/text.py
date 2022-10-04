@@ -54,28 +54,29 @@ def htmlTags(text):
         text = re.sub(tagPair[0], tagPair[1], text)
     return text
 
+
 def tokenize(
-    text, languageModel=nlp, ngramRange=(1,5), limitPOS=False, 
+    text, languageModel=nlp, ngramRange=(1, 5), limitPOS=False,
     excludeStopWords=False, excludePunctuation=False, excludeNumerical=False,
     excludeNonAlphabetic=False,
     tokenMinLength=1, debug=False
 ):
     """Tokenize the provided text using the specified Spacy language model.
-    
+   
     Limit tokens to specific Parts-of-Speech by providing a list,e.g.
     limitPOS=["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"].
-    
-    Exclude stop words by setting excludeStopWords=True. 
+  
+    Exclude stop words by setting excludeStopWords=True.
     :param languageModel: The Spacy language model used for tokenizing.
     :type languageModel: class:`spacy.nlp`
     :param ngramRange: Range of ngrams to be returned, default 1- to 5-gram.
     :type ngramRange: tuple
-    :param limitPOS: Limit returned tokens to specific Parts of Speech. 
+    :param limitPOS: Limit returned tokens to specific Parts of Speech.
     :type limitPOS: bool list
     :param excludeStopWords: Exclude stop words from returned tokens.
-    :type excludeStopWords: bool 
+    :type excludeStopWords: bool
     :param tokenMinLength: Set minimal length of returned token.
-    :type tokenMinLength: int 
+    :type tokenMinLength: int
     """
     starttime = time.time()
     doc = nlp(text)
@@ -84,9 +85,9 @@ def tokenize(
     for sent in list(doc.sents):
         sentPOS = []
         for token in sent:
-            if isinstance(limitPOS,list):
+            if isinstance(limitPOS, list):
                 if token.tag_ not in limitPOS:
-                    continue 
+                    continue
             if excludeStopWords is True:
                 if token.is_stop:
                     continue
@@ -94,7 +95,7 @@ def tokenize(
                 if token.is_digit is True:
                     continue
             if excludeNonAlphabetic is True:
-                if not token.is_alpha is True:
+                if token.is_alpha is not True:
                     continue
             if excludePunctuation is True:
                 if token.is_punct is True:
@@ -109,7 +110,3 @@ def tokenize(
     if debug is True:
         print(f"Created ngrams in {time.time() - starttime} sec.")
     return [x for y in ngramList for x in y]
-
-
-
-            
