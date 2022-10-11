@@ -65,6 +65,8 @@ def tokenize(
    
     Limit tokens to specific Parts-of-Speech by providing a list,e.g.
     limitPOS=["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"].
+    Found ngrams are joined with the special character "#" (hash) which needs to be taken 
+    into account in later steps of processing pipelines.
   
     Exclude stop words by setting excludeStopWords=True.
     :param languageModel: The Spacy language model used for tokenizing.
@@ -109,4 +111,6 @@ def tokenize(
             ngramList.append(list(ngrams))
     if debug is True:
         print(f"Created ngrams in {time.time() - starttime} sec.")
-    return [x for y in ngramList for x in y]
+    extractedNgrams = [x for y in ngramList for x in y]
+    reformated = ['#'.join(elem) for elem in extractedNgrams]
+    return reformated

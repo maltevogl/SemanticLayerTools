@@ -80,22 +80,27 @@ class CalculateSurprise():
                 )
         return self.ngramDocTfidf
 
-    def getNgramPatterns(self, year, dataframe, ngramLimit=2):
+    def getNgramPatterns(self, year, dataframe, ngramLimit=2, specialChar="#"):
         """Create dictionaries of occuring ngrams."""
         self.counts[year] = {}
         self.outputDict[year] = {}
         allNGrams = {}
         for _, row in tqdm(dataframe.iterrows(), leave=False):
             self.outputDict[year].update(
-                {row[self.pubIDCol]: [x for x in row[self.tokenColumn] if len(x) <= ngramLimit]}
+                {row[self.pubIDCol]: [x for x in row[self.tokenColumn] if len(x.split(specialChar)) <= ngramLimit]}
             )
             for elem in row[self.tokenColumn]:
+                keyVal = len(elem.split(specialChar))
                 try:
-                    val = allNGrams[len(elem)]
+                    val = allNGrams[keyVal]
                 except KeyError:
                     val = []
-                val.append(elem)
-                allNGrams.update({len(elem): val})
+                if keyVal > 2:
+                    val.append(elem.split(specialChar))
+                    allNGrams.update({keyVal: val})
+                else:
+                    val.append(elem)
+                    allNGrams.update({keyVal: val})
 
         self.OneGramCounts = dict(Counter(allNGrams[1]).most_common())
         self.TwoGramCounts = dict(Counter(allNGrams[2]).most_common())
@@ -108,19 +113,20 @@ class CalculateSurprise():
         self.sorted4grams = [list(group) for key, group in groupby(all4grams, itemgetter(3))]
         self.sorted5grams = [list(group) for key, group in groupby(all5grams, itemgetter(3, 4))]
 
-    def getSurprise(self, target: tuple, ngramNr: int = 1, minNgramNr: int = 5):
+    def getSurprise(self, target: tuple, ngramNr: int = 1, minNgramNr: int = 5, specialChar: str = "#"):
         """Calculate surprise score."""
         if ngramNr == 1:
             tokName = target[0][3]
-            if self.OneGramCounts[tuple([tokName])] < minNgramNr:
+            if self.OneGramCounts[tokName] < minNgramNr:
                 return {tokName: 0}
         elif ngramNr == 2:
             tokList = [target[0][3], target[0][4]]
-            tokName = ' '.join(tokList)
-            if self.TwoGramCounts[tuple(tokList)] < minNgramNr:
+            tokName = specialChar.join(tokList)
+            if self.TwoGramCounts[tokName] < minNgramNr:
                 return {tokName: 0}
-        basisLen = len(set(target))
-        counts = dict(Counter(target).most_common())
+        joinedTarget = [specialChar.join(x) for x in target]
+        basisLen = len(set(joinedTarget))
+        counts = dict(Counter(joinedTarget).most_common())
         probList = []
         for key, val in counts.items():
             probList.append(
@@ -181,7 +187,7 @@ class CalculateSurprise():
             # Calculate 1-gram surprises
             chunk_size = int(len(self.sorted4grams) / ncores)
             if self.debug is True:
-                print(f"\tCalculated chunk size is {chunk_size}.")
+                print(f"\tStarting 1-gram surprise.\n\tCalculated chunk size is {chunk_size}.")
             batches = [
                 list(self.sorted4grams)[i:i + chunk_size] for i in range(0, len(self.sorted4grams), chunk_size)
             ]
@@ -192,7 +198,7 @@ class CalculateSurprise():
             # Calculate 2-gram surprises
             chunk_size = int(len(self.sorted5grams) / ncores)
             if self.debug is True:
-                print(f"\tCalculated chunk size is {chunk_size}.")
+                print(f"\tStarting 2-gram surprise.\n\tCalculated chunk size is {chunk_size}.")
             batches = [
                 list(self.sorted5grams)[i:i + chunk_size] for i in range(0, len(self.sorted5grams), chunk_size)
             ]
@@ -200,19 +206,22 @@ class CalculateSurprise():
             results2 = [x for y in ncoresResults for x in y]
             for elem in results2:
                 self.surprise[year].update(elem)
-            # Link to pulications
+            # Link to publications
             for key, val in self.outputDict[year].items():
                 tmpList = []
                 for elem in val:
-                    try:
-                        tmpList.append([elem, self.surprise[year][' '.join(elem)]])
-                    except TypeError:
-                        print(elem)
-                        raise
+                    if elem in self.surprise[year].keys():
+                        try:
+                            tmpList.append([elem, self.surprise[year][elem]])
+                        except Exception:
+                            print(elem)
+                            raise
                 self.outputDict[year].update({key: tmpList})
+            # Calculate TFIDF
             if self.debug is True:
                 print("Start tfidf calculations.")
             self.getTfiDF(year)
+            # Write data to disc.
             if write is True:
                 if recreate is True:
                     try:
@@ -475,7 +484,7 @@ class LinksOverTime():
         authorColumn: str = 'authors',
         pubIDColumn: str = "pubID",
         yearColumn: str = 'year',
-        debug = False
+        debug: bool = False
     ):
         self.dataframe = dataframe
         self.authorCol = authorColumn
@@ -660,6 +669,6 @@ class LinksOverTime():
         for sl, score, tfidf in tqdm(zip(slices, scores, tfidfs), leave=False, position=0):
             self.writeLinks(
                 sl, os.path.join(scorePath, score), scoreLimit, normalize,
-                os.path.join(scorePath, tfidf), coauthorValue, authorValue, 
+                os.path.join(scorePath, tfidf), coauthorValue, authorValue,
                 outpath=outPath, recreate=recreate
             )
