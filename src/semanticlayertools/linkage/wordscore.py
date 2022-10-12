@@ -564,10 +564,13 @@ class LinksOverTime():
             slices.append(x)
         return slices
 
-    def createNodeRegister(self, scorePath, scoreLimit):
+    def createNodeRegister(self, scorePath: str, scoreLimit: float, scoreType: str = 'score'):
         """Create multilayer node register for all time slices."""
         starttime = time.time()
-        scores = [x for x in os.listdir(scorePath) if x.endswith('_score.tsv')]
+        if scoreType == "score":
+            scores = [x for x in os.listdir(scorePath) if x.endswith('_score.tsv')]
+        elif scoreType == "surprise":
+            scores = [x for x in os.listdir(scorePath) if x.endswith('_surprise.tsv')]
         ngrams = [pd.read_csv(
             scorePath + score,
             sep='\t',
@@ -692,7 +695,7 @@ class LinksOverTime():
                 for _, ngramrow in ngramsList.iterrows():
                     try:
                         ngramNr = self.nodeMap[ngramrow[1]]
-                        # weight = ngramrow[2]
+                        # TODO: Setting precision for weight could be a problem for other datasets. 
                         file.write(
                             f'2 {paperNr} 3 {ngramNr} {ngramrow[2]:.2f}\n'
                         )
@@ -701,7 +704,7 @@ class LinksOverTime():
                         raise
 
     def run(
-        self, windowsize: int = 3, normalize: bool = True,
+        self, windowsize: int = 3, normalize: bool = True, scoreType: str = "score",
         coauthorValue: float = 0.0, authorValue: float = 0.0, recreate: bool = False,
         scorePath: str = './', outPath: str = './', scoreLimit: float = 0.1
     ):
@@ -714,9 +717,12 @@ class LinksOverTime():
         for each time slice is 1.0. Choose the score limit accordingly.
         """
         slices = self._createSlices(windowsize)
-        scores = sorted([x for x in os.listdir(scorePath) if x.endswith('_score.tsv')])
+        if scoreType == "score":
+            scores = sorted([x for x in os.listdir(scorePath) if x.endswith('_score.tsv')])
+        elif scoreType == "surprise":
+            scores = sorted([x for x in os.listdir(scorePath) if x.endswith('_surprise.tsv')])
         tfidfs = sorted([x for x in os.listdir(scorePath) if x.endswith('_tfidf.tsv')])
-        self.createNodeRegister(scorePath, scoreLimit)
+        self.createNodeRegister(scorePath, scoreLimit, scoreType)
         for sl, score, tfidf in tqdm(zip(slices, scores, tfidfs), leave=False, position=0):
             self.writeLinks(
                 sl, os.path.join(scorePath, score), scoreLimit, normalize,
