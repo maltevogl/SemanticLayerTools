@@ -655,6 +655,7 @@ class LinksOverTime():
         pubs = slicedataframe[self.pubIDCol].fillna('None').unique()
         ngrams = tfidfframe[1].unique()
 
+        scoreDict = ngramdataframe.drop(0, axis=1).drop_duplicates().set_index(1).to_dict()[2]
         slicenodes = authors
         slicenodes.extend(pubs)
         slicenodes.extend(ngrams)
@@ -682,22 +683,23 @@ class LinksOverTime():
                 if len(authors) >= 2:
                     for pair in combinations(authors, 2):
                         file.write(
-                            f'1 {slicenodemap[pair[0]]} 1 {slicenodemap[pair[1]]} {coauthorValue}\n'
+                            f'1 {slicenodemap[pair[0]]} 1 {slicenodemap[pair[1]]} {coauthorValue:.3f}\n'
                         )
                 for author in authors:
                     try:
                         authNr = self.nodeMap[author]
                         file.write(
-                            f'1 {authNr} 2 {paperNr} {authorValue}\n'
+                            f'1 {authNr} 2 {paperNr} {authorValue:.3f}\n'
                         )
                     except KeyError:
                         raise
                 for _, ngramrow in ngramsList.iterrows():
                     try:
                         ngramNr = self.nodeMap[ngramrow[1]]
-                        ngramScore = ngramdataframe.query("@ngramdataframe[1]==@ngramrow[1]")[2].unique()[0]
+                        ngramScore = scoreDict[ngramrow[1]]
                         ngramTFIDF = ngramrow[2]
                         # FIXME: ? This is a first approach to bring scores and tfidf together.
+                        # TODO: Rethink to improve performance.
                         weight = ngramScore * ngramTFIDF
                         # TODO: Setting precision for weight could be a problem for other datasets.
                         file.write(
