@@ -12,6 +12,28 @@ import pandas as pd
 
 class CalculateSurprise():
     """Calculates surprise scores for documents.
+
+    The source dataframe is expected to contain pre-calculated ngrams (tokens) for each document 
+    in the form of lists of 1-grams, joined by a special character (default is "#" (hash)). For surprise 
+    calculation of e.g. 1- and 2-grams the precalculated n-grams need to contain at least 5-grams, to evaluate
+    the surprise context of 1- and 2-grams. The main routine of this class is run(). 
+
+    :param sourceDataframe: Dataframe containing the basic corpus
+    :type sourceDataframe: class:`pandas.DataFrame`
+    :param pubIDColumn: Column name to use for publication identification (assumend to be unique)
+    :type pubIDColumn: str
+    :param yearColumn: Column name for temporal ordering publications, used during writing the scoring files
+    :type yearColumn: str
+    :param tokenColumn: Column name for tokens
+    :type tokenColumn: str
+
+    .. seealso::
+
+        Stefania Degaetano-Ortlieb and Elke Teich. 2017. 
+        Modeling intra-textual variation with entropy and surprisal: topical vs. stylistic patterns. 
+        In Proceedings of the Joint SIGHUM Workshop on Computational Linguistics for Cultural Heritage, Social Sciences, Humanities and Literature, pages 68–77, 
+        Vancouver, Canada. Association for Computational Linguistics.
+
     """
 
     def __init__(
@@ -33,6 +55,7 @@ class CalculateSurprise():
         self.TwoGramCounts = {}
         self.sorted4grams = {}
         self.sorted5grams = {}
+        self.minNgramNr = 1
         self.ngramDocTfidf = {}
         self.outputDict = {}
         self.counts = {}
@@ -52,6 +75,7 @@ class CalculateSurprise():
             yield result
 
     def _createSlices(self, windowsize):
+        """Create slices of dataframe."""
         slices = []
         years = sorted(self.baseDF[self.yearCol].unique())
         for x in self._window(years, windowsize):
@@ -59,6 +83,7 @@ class CalculateSurprise():
         return slices
 
     def getTfiDF(self, year):
+        """Calculate augmented term-frequency inverse document frequency."""
         ngramNDocs = {}
         self.ngramDocTfidf[year] = []
         nDocs = len(self.outputDict[year].keys())
@@ -81,7 +106,17 @@ class CalculateSurprise():
         return self.ngramDocTfidf
 
     def getNgramPatterns(self, year, dataframe, ngramLimit=2, specialChar="#"):
-        """Create dictionaries of occuring ngrams."""
+        """Create dictionaries of occuring ngrams.
+        
+        :param year: Current year for calculations
+        :type year: int
+        :param dataframe: Current slice of main dataframe
+        :type dataframe: class:`pandas.DataFrame`
+        :param ngramLimit: Maximal ngram to consider for surprise calculation (default=2)
+        :type ngramLimit: int
+        :param specialChar: Special character used to delimit tokens in ngrams (default=#)
+        :type specialChar: str
+        """
         self.counts[year] = {}
         self.outputDict[year] = {}
         allNGrams = {}
@@ -113,16 +148,26 @@ class CalculateSurprise():
         self.sorted4grams = [list(group) for key, group in groupby(all4grams, itemgetter(3))]
         self.sorted5grams = [list(group) for key, group in groupby(all5grams, itemgetter(3, 4))]
 
-    def getSurprise(self, target: tuple, ngramNr: int = 1, minNgramNr: int = 5, specialChar: str = "#"):
-        """Calculate surprise score."""
+    def getSurprise(self, target: list, ngramNr: int = 1, specialChar: str = "#"):
+        """Calculate surprise score.
+        
+        :param target: Target list of tuples to use for surprise calculation 
+        :type target: list
+        :param ngramNr: ngram length to use for calculation (1 or 2)
+        :type ngramNr: int
+        :param minNgramNr: Minimal number of occurance of a 1- or 2-gram in the corpus to consider calculations (default=5)
+        :type minNgramNr: int
+        :param specialChar: Special character used to delimit tokens in ngrams (default=#)
+        :type specialChar: str
+        """
         if ngramNr == 1:
             tokName = target[0][3]
-            if self.OneGramCounts[tokName] < minNgramNr:
+            if self.OneGramCounts[tokName] < self.minNgramNr:
                 return {tokName: 0}
         elif ngramNr == 2:
             tokList = [target[0][3], target[0][4]]
             tokName = specialChar.join(tokList)
-            if self.TwoGramCounts[tokName] < minNgramNr:
+            if self.TwoGramCounts[tokName] < self.minNgramNr:
                 return {tokName: 0}
         joinedTarget = [specialChar.join(x) for x in target]
         basisLen = len(set(joinedTarget))
@@ -149,9 +194,15 @@ class CalculateSurprise():
 
     def run(
         self, windowsize: int = 3, write: bool = False, outpath: str = './',
-        recreate: bool = False, maxNgram: int = 2, tokenMinCount: int = 5, limitCPUs: bool = True
+        recreate: bool = False, maxNgram: int = 2, minNgramNr: int = 5, limitCPUs: bool = True
     ):
-        """Get score for all documents."""
+        """Calculate surprise for all documents.
+        
+        Base corpus is sliced with a rolling window (see windowsize). 
+
+        :param minNgramNr: Minimal number of occurance of a 1- or 2-gram in the corpus to consider calculations (default=5)
+        :type minNgramNr: int
+        """
         starttime = time.time()
         print(f"Got data for {self.baseDF[self.yearCol].min()} to {self.baseDF[self.yearCol].max()}, starting calculations.")
         for timeslice in self._createSlices(windowsize):
