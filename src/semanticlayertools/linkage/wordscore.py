@@ -695,7 +695,7 @@ class LinksOverTime():
                 for _, ngramrow in ngramsList.iterrows():
                     try:
                         ngramNr = self.nodeMap[ngramrow[1]]
-                        ngramScore = ngramdataframe.query(ngramdataframe[1]==ngramrow[1])[2].iloc(0)
+                        ngramScore = ngramdataframe.query("@ngramdataframe[1]==@ngramrow[1]")[2].unique()[0]
                         ngramTFIDF = ngramrow[2]
                         # FIXME: ? This is a first approach to bring scores and tfidf together.
                         weight = ngramScore * ngramTFIDF
