@@ -695,9 +695,13 @@ class LinksOverTime():
                 for _, ngramrow in ngramsList.iterrows():
                     try:
                         ngramNr = self.nodeMap[ngramrow[1]]
-                        # TODO: Setting precision for weight could be a problem for other datasets. 
+                        ngramScore = ngramdataframe.query(ngramdataframe[1]==ngramrow[1])[2].iloc(0)
+                        ngramTFIDF = ngramrow[2]
+                        # FIXME: ? This is a first approach to bring scores and tfidf together.
+                        weight = ngramScore * ngramTFIDF
+                        # TODO: Setting precision for weight could be a problem for other datasets.
                         file.write(
-                            f'2 {paperNr} 3 {ngramNr} {ngramrow[2]:.2f}\n'
+                            f'2 {paperNr} 3 {ngramNr} {weight:.3f}\n'
                         )
                     except KeyError:
                         print(ngramrow[1])
