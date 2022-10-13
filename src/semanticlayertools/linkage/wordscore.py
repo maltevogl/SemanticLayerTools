@@ -450,11 +450,10 @@ class CalculateScores():
             self.scores.update({year: {}})
             if write is True:
                 filePath = f'{outpath}{str(year)}_score.tsv'
-                filePathTF = f'{outpath}{str(year)}_tfidf.tsv'
-                if os.path.isfile(filePath) or os.path.isfile(filePathTF):
+                if os.path.isfile(filePath):
                     if recreate is False:
                         raise IOError(
-                            f'File at {filePath} or {filePathTF} exists. Set recreate = True to overwrite.'
+                            f'File at {filePath} exists. Set recreate = True to overwrite.'
                         )
             if self.debug is True:
                 print(f"Creating ngram counts for {year}.")
@@ -505,20 +504,21 @@ class CalculateScores():
             if self.debug is True:
                 print("Start tfidf calculations.")
             self.getTfiDF(year)
+            # Prepare output data.
+            outputList = []
+            for pub in dataframe[self.pubIDCol].unique():
+                for elem in self.outputDict[year][pub]:
+                    outputList.append((pub, elem[0], elem[1]))
+            dfTf = pd.DataFrame(self.ngramDocTfidf[year], columns=['doc', 'ngram', 'count', 'tfidf'])
+            dfSc = pd.DataFrame(outputList, columns=['doc', 'ngram', 'score'])
+            dfM = dfTf.merge(dfSc, on=['doc', 'ngram'], how='outer').drop_duplicates()
             if write is True:
                 if recreate is True:
                     try:
                         os.remove(filePath)
-                        os.remove(filePathTF)
                     except FileNotFoundError:
                         pass
-                with open(filePath, 'a') as yearfile:
-                    for pub in dataframe[self.pubIDCol].unique():
-                        for elem in self.outputDict[year][pub]:
-                            yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
-                with open(filePathTF, 'a') as yearfile2:
-                    for elem in self.ngramDocTfidf[year]:
-                        yearfile2.write(f'{elem[0]}\t{elem[1]}\t{elem[2]}\n')
+                dfM.to_csv(filePath, sep="\t", index=False)
                 if self.debug is True:
                     print(f'\tDone creating scores for {year}, written to {filePath}.')
         print(f'Done in {(time.time() - starttime)/60:.2f} minutes.')
@@ -624,7 +624,7 @@ class LinksOverTime():
 
     def writeLinks(
         self, sl, scorePath: str, scoreLimit: float, normalize: bool,
-        tfidfPath: str, coauthorValue: float = 0.0, authorValue: float = 0.0,
+        coauthorValue: float = 0.0, authorValue: float = 0.0,
         outpath: str = './', recreate: bool = False
     ):
         """Write multilayer links to file in Pajek format.
@@ -643,8 +643,6 @@ class LinksOverTime():
         :type scoreLimit: float
         :param normalize: Normalize the scores (True/False)
         :type normalize: bool
-        :param tfidfPath: Path to tfidf files.
-        :type tfidfPath: str
         :param coauthorValue: Set manual value for coauthor weight (default: Median of score weight) 
         :type coauthorvalue: float
         :param authorValue: Set manual value for author to publication weight (default: Median of score weight)
@@ -667,25 +665,22 @@ class LinksOverTime():
 
         ngramdataframe = pd.read_csv(
             scorePath,
-            sep='\t',
-            header=None
+            sep='\t'
         )
+        # Join results from tfidf and scoring
+        # FIXME: This is a first approach to bring scores and tfidf together by just multiplying.
+        jscore = ngramdataframe['tfidf'] * ngramdataframe['score']
+        ngramdataframe.insert(1, 'joinedscore', jscore)
         if normalize is True:
-            maxval = ngramdataframe[2].max()
-            normVal = ngramdataframe[2] / maxval
-            ngramdataframe[2] = normVal
-        ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
-
-        tfidfframe = pd.read_csv(
-            tfidfPath, sep="\t", header=None
-        )
-        tfidfframe = tfidfframe.query("@tfidfframe[1].isin(@ngramdataframe[1].unique())")
-
+            maxval = ngramdataframe["joinedscore"].max()
+            normVal = ngramdataframe["joinedscore"] / maxval
+            ngramdataframe['joinedscore'] = normVal
+        ngramdataframe = ngramdataframe[ngramdataframe['joinedscore'] > scoreLimit]
         # Sets the default value for person to person and person to publication edges
         if coauthorValue == 0.0:
-            coauthorValue = tfidfframe[2].median()
+            coauthorValue = ngramdataframe['joinedscore'].median()
         if authorValue == 0.0:
-            authorValue = tfidfframe[2].median()
+            authorValue = ngramdataframe['joinedscore'].median()
 
         authorList = [
             x for y in [
@@ -694,9 +689,8 @@ class LinksOverTime():
         ]
         authors = [x for x in set(authorList) if x]
         pubs = slicedataframe[self.pubIDCol].fillna('None').unique()
-        ngrams = tfidfframe[1].unique()
+        ngrams = ngramdataframe['ngram'].unique()
 
-        scoreDict = ngramdataframe.drop(0, axis=1).drop_duplicates().set_index(1).to_dict()[2]
         slicenodes = authors
         slicenodes.extend(pubs)
         slicenodes.extend(ngrams)
@@ -719,7 +713,7 @@ class LinksOverTime():
                 paper = row[self.pubIDCol]
                 if paper not in slicenodemap.keys():
                     print(f'Cannot find {paper}')
-                ngramsList = tfidfframe.query("@tfidfframe[0] == @paper")
+                ngramsList = ngramdataframe.query("@ngramdataframe['doc'] == @paper")
                 paperNr = slicenodemap[paper]
                 if len(authors) >= 2:
                     for pair in combinations(authors, 2):
@@ -736,18 +730,14 @@ class LinksOverTime():
                         raise
                 for _, ngramrow in ngramsList.iterrows():
                     try:
-                        ngramNr = self.nodeMap[ngramrow[1]]
-                        ngramScore = scoreDict[ngramrow[1]]
-                        ngramTFIDF = ngramrow[2]
-                        # FIXME: ? This is a first approach to bring scores and tfidf together.
-                        # TODO: Rethink to improve performance.
-                        weight = ngramScore * ngramTFIDF
+                        ngramNr = self.nodeMap[ngramrow['ngram']]
+                        weight = ngramrow['joinedscore']
                         # TODO: Setting precision for weight could be a problem for other datasets.
                         file.write(
                             f'2 {paperNr} 3 {ngramNr} {weight:.3f}\n'
                         )
                     except KeyError:
-                        print(ngramrow[1])
+                        print(ngramrow['ngram'])
                         raise
 
     def run(
@@ -768,11 +758,11 @@ class LinksOverTime():
             scores = sorted([x for x in os.listdir(scorePath) if x.endswith('_score.tsv')])
         elif scoreType == "surprise":
             scores = sorted([x for x in os.listdir(scorePath) if x.endswith('_surprise.tsv')])
-        tfidfs = sorted([x for x in os.listdir(scorePath) if x.endswith('_tfidf.tsv')])
+        # tfidfs = sorted([x for x in os.listdir(scorePath) if x.endswith('_tfidf.tsv')])
         self.createNodeRegister(scorePath, scoreLimit, scoreType)
-        for sl, score, tfidf in tqdm(zip(slices, scores, tfidfs), leave=False, position=0):
+        for sl, score in tqdm(zip(slices, scores), leave=False, position=0):
             self.writeLinks(
-                sl, os.path.join(scorePath, score), scoreLimit, normalize,
-                os.path.join(scorePath, tfidf), coauthorValue, authorValue,
+                sl, os.path.join(scorePath, score), scoreLimit,
+                normalize, coauthorValue, authorValue,
                 outpath=outPath, recreate=recreate
             )
