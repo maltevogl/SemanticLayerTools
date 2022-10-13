@@ -291,7 +291,7 @@ class CalculateSurprise():
                     outputList.append((pub, elem[0], elem[1]))
             dfTf = pd.DataFrame(self.ngramDocTfidf[year], columns=['doc', 'ngram', 'count', 'tfidf'])
             dfSc = pd.DataFrame(outputList, columns=['doc', 'ngram', 'score'])
-            dfM = dfTf.merge(dfSc, on=['doc', 'ngram'], how='inner')
+            dfM = dfTf.merge(dfSc, on=['doc', 'ngram'], how='outer').drop_duplicates()
             if write is True:
                 if recreate is True:
                     try:
