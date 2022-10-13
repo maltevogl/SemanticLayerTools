@@ -101,7 +101,7 @@ class CalculateSurprise():
             maxVal = max(ngramDict.values())
             for key, val in ngramDict.items():
                 self.ngramDocTfidf[year].append(
-                    (doi, key, (0.5 + 0.5 * (val / maxVal)) * np.log(nDocs / ngramNDocs[key]))
+                    (doi, key, val, (0.5 + 0.5 * (val / maxVal)) * np.log(nDocs / ngramNDocs[key]))
                 )
         return self.ngramDocTfidf
 
@@ -192,13 +192,13 @@ class CalculateSurprise():
 
     def _calcBatch1(self, batch):
         res = []
-        for elem in tqdm(batch, leave=False):
+        for elem in batch:
             res.append(self.getSurprise(elem, ngramNr=1))
         return res
 
     def _calcBatch2(self, batch):
         res = []
-        for elem in tqdm(batch, leave=False):
+        for elem in batch:
             res.append(self.getSurprise(elem, ngramNr=2))
         return res
 
@@ -238,7 +238,7 @@ class CalculateSurprise():
             )
             if self.debug is True:
                 print(
-                    f'\tFound {len(self.OneGramCounts.keys())} unique 1-grams.')
+                    f'\tFound {len(self.OneGramCounts.keys())} unique 1-grams and {len(self.TwoGramCounts.keys())} unique 2-grams.')
             # Setup multiprocessing
             if limitCPUs is True:
                 ncores = int(cpu_count() * 1 / 4)
@@ -289,9 +289,9 @@ class CalculateSurprise():
             for pub in dataframe[self.pubIDCol].unique():
                 for elem in self.outputDict[year][pub]:
                     outputList.append((pub, elem[0], elem[1]))
-            dfTf = pd.DataFrame(self.ngramDocTfidf[year], columns=['doc', 'ngram', 'tfidf'])
+            dfTf = pd.DataFrame(self.ngramDocTfidf[year], columns=['doc', 'ngram', 'count', 'tfidf'])
             dfSc = pd.DataFrame(outputList, columns=['doc', 'ngram', 'score'])
-            dfM = dfTf.merge(dfSc, on=['doc', 'ngram'], how='outer')
+            dfM = dfTf.merge(dfSc, on=['doc', 'ngram'], how='inner')
             if write is True:
                 if recreate is True:
                     try:
