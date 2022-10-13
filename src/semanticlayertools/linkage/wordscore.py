@@ -14,9 +14,9 @@ class CalculateSurprise():
     """Calculates surprise scores for documents.
 
     The source dataframe is expected to contain pre-calculated ngrams (tokens) for each document 
-    in the form of lists of 1-grams, joined by a special character (default is "#" (hash)). For surprise 
+    in the form of lists of 1-grams, joined by a special character (default is "#" (hash)). For surprise
     calculation of e.g. 1- and 2-grams the precalculated n-grams need to contain at least 5-grams, to evaluate
-    the surprise context of 1- and 2-grams. The main routine of this class is run(). 
+    the surprise context of 1- and 2-grams, see reference for details. The main routine of this class is run().
 
     :param sourceDataframe: Dataframe containing the basic corpus
     :type sourceDataframe: class:`pandas.DataFrame`
@@ -30,8 +30,8 @@ class CalculateSurprise():
     .. seealso::
 
         Stefania Degaetano-Ortlieb and Elke Teich. 2017. 
-        Modeling intra-textual variation with entropy and surprisal: topical vs. stylistic patterns. 
-        In Proceedings of the Joint SIGHUM Workshop on Computational Linguistics for Cultural Heritage, Social Sciences, Humanities and Literature, pages 68–77, 
+        Modeling intra-textual variation with entropy and surprisal: topical vs. stylistic patterns.
+        In Proceedings of the Joint SIGHUM Workshop on Computational Linguistics for Cultural Heritage, Social Sciences, Humanities and Literature, pages 68–77,
         Vancouver, Canada. Association for Computational Linguistics.
 
     """
@@ -96,7 +96,7 @@ class CalculateSurprise():
         for ngram, g0 in tempscore.groupby(1):
             ngramNDocs.update({ngram: len(g0[0].unique())})
 
-        for doi in tqdm(tempscore[0].unique(), leave=False):
+        for doi in tempscore[0].unique():
             ngramDict = tempscore[tempscore[0] == doi][1].value_counts().to_dict()
             maxVal = max(ngramDict.values())
             for key, val in ngramDict.items():
@@ -122,7 +122,11 @@ class CalculateSurprise():
         allNGrams = {}
         for _, row in tqdm(dataframe.iterrows(), leave=False):
             self.outputDict[year].update(
-                {row[self.pubIDCol]: [x for x in row[self.tokenColumn] if len(x.split(specialChar)) <= ngramLimit]}
+                {
+                    row[self.pubIDCol]: [
+                        x for x in row[self.tokenColumn] if len(x.split(specialChar)) <= ngramLimit
+                    ]
+                }
             )
             for elem in row[self.tokenColumn]:
                 keyVal = len(elem.split(specialChar))
@@ -150,8 +154,14 @@ class CalculateSurprise():
 
     def getSurprise(self, target: list, ngramNr: int = 1, specialChar: str = "#"):
         """Calculate surprise score.
-        
-        :param target: Target list of tuples to use for surprise calculation 
+
+        The surprise for a 1- or 2-gram is calculated based on the group of 4- or 5-grams which 
+        contain the target in the last or two last positions (e.g. experiment and the#last#experiment),
+        and defined as the sum over the base two logarithm of the probabilities for 4- or 5-grams.
+        The probability, e.g for a given 4-gram, is the number  of realizations of that 4-gram devided 
+        by the number of possible 4-grams.
+
+        :param target: Target list of tuples to use for surprise calculation.
         :type target: list
         :param ngramNr: ngram length to use for calculation (1 or 2)
         :type ngramNr: int
@@ -198,7 +208,9 @@ class CalculateSurprise():
     ):
         """Calculate surprise for all documents.
         
-        Base corpus is sliced with a rolling window (see windowsize). 
+        Base corpus is sliced with a rolling window (see windowsize).
+        For each slice the ngram distributions are created and surpise
+        and tfidf scores calculated. The results are returned or saved.
 
         :param minNgramNr: Minimal number of occurance of a 1- or 2-gram in the corpus to consider calculations (default=5)
         :type minNgramNr: int
@@ -212,11 +224,10 @@ class CalculateSurprise():
             self.surprise.update({year: {}})
             if write is True:
                 filePath = f'{outpath}{str(year)}_surprise.tsv'
-                filePathTF = f'{outpath}{str(year)}_tfidf.tsv'
-                if os.path.isfile(filePath) or os.path.isfile(filePathTF):
+                if os.path.isfile(filePath):
                     if recreate is False:
                         raise IOError(
-                            f'File at {filePath} or {filePathTF} exists. Set recreate = True to overwrite.'
+                            f'File at {filePath} exists. Set recreate = True to overwrite.'
                         )
             if self.debug is True:
                 print(f"Creating ngram counts for {year}.")
@@ -228,6 +239,7 @@ class CalculateSurprise():
             if self.debug is True:
                 print(
                     f'\tFound {len(self.OneGramCounts.keys())} unique 1-grams.')
+            # Setup multiprocessing
             if limitCPUs is True:
                 ncores = int(cpu_count() * 1 / 4)
             else:
@@ -272,21 +284,21 @@ class CalculateSurprise():
             if self.debug is True:
                 print("Start tfidf calculations.")
             self.getTfiDF(year)
-            # Write data to disc.
+            # Prepare output data.
+            outputList = []
+            for pub in dataframe[self.pubIDCol].unique():
+                for elem in self.outputDict[year][pub]:
+                    outputList.append((pub, elem[0], elem[1]))
+            dfTf = pd.DataFrame(self.ngramDocTfidf[year], columns=['doc', 'ngram', 'tfidf'])
+            dfSc = pd.DataFrame(outputList, columns=['doc', 'ngram', 'score'])
+            dfM = dfTf.merge(dfSc, on=['doc', 'ngram'], how='outer')
             if write is True:
                 if recreate is True:
                     try:
                         os.remove(filePath)
-                        os.remove(filePathTF)
                     except FileNotFoundError:
                         pass
-                with open(filePath, 'a') as yearfile:
-                    for pub in dataframe[self.pubIDCol].unique():
-                        for elem in self.outputDict[year][pub]:
-                            yearfile.write(f'{pub}\t{elem[0]}\t{elem[1]}\n')
-                with open(filePathTF, 'a') as yearfile2:
-                    for elem in self.ngramDocTfidf[year]:
-                        yearfile2.write(f'{elem[0]}\t{elem[1]}\t{elem[2]}\n')
+                dfM.to_csv(filePath, sep='\t', index=False)
                 if self.debug is True:
                     print(f'\tDone creating surprise scores for {year}, written to {filePath}.')
         print(f'Done in {(time.time() - starttime)/60:.2f} minutes.')
@@ -520,13 +532,16 @@ class LinksOverTime():
 
     To keep track of nodes over time, we need a global register of node names.
     This class takes care of this, by adding new keys of authors, papers or
-    ngrams to the register.
+    ngrams to the register. Central routine is "writeLinks".
 
     :param dataframe: Source dataframe containing metadata of texts (authors, publicationID and year)
     :type dataframe: class:`pandas.DataFrame`
     :param authorColumn: Column name for author information, author names are assumed to be separated by semikolon
+    :type authorColumn: str
     :param pubIDColumn: Column name to identify publications
-    :param yearColumn: Column name with year information (year as integer)
+    :type pubIDColumn: str
+    :param yearColumn: Column name with year information (year encoded as integer)
+    :type yearColumn: str
     """
 
     def __init__(
@@ -612,7 +627,33 @@ class LinksOverTime():
         tfidfPath: str, coauthorValue: float = 0.0, authorValue: float = 0.0,
         outpath: str = './', recreate: bool = False
     ):
-        """Write multilayer links to file in Pajek format."""
+        """Write multilayer links to file in Pajek format.
+
+        For ngrams with score above the limit, the corresponding tfidf value is extracted. 
+        If no preset value is given, links between coauthors and authors and publications 
+        are set to the median of the score values of the time slice.
+        The created graphs are saved as pajek files, containing the 
+        information on node names and layers (1: authors, 2: publications, 3: ngrams). 
+
+        :param sl: Year slice of calculation
+        :type sl: list
+        :param scorePath: Path to score files.
+        :type scorePath: str
+        :param scoreLimit: Lower limit of scores to consider for network creation
+        :type scoreLimit: float
+        :param normalize: Normalize the scores (True/False)
+        :type normalize: bool
+        :param tfidfPath: Path to tfidf files.
+        :type tfidfPath: str
+        :param coauthorValue: Set manual value for coauthor weight (default: Median of score weight) 
+        :type coauthorvalue: float
+        :param authorValue: Set manual value for author to publication weight (default: Median of score weight)
+        :type authorValue: float
+        :param outPath: Path to write multilayer pajek files (default = './')
+        :type outPath: str
+        :param recreate: Rewrite existing files (default = False)
+        :type recreate: bool
+        """
         slicedataframe = self.dataframe[self.dataframe[self.yearColumn].isin(sl)]
         filePath = outpath + 'multilayerPajek_{0}.net'.format(sl[-1])
 
