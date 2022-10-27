@@ -600,7 +600,7 @@ class LinksOverTime():
         ]
         authors = [x for x in set(authorList) if x]
         pubs = self.dataframe[self.pubIDCol].fillna('None').unique()
-        ngrams = ngramdataframe[1].unique()
+        ngrams = ngramdataframe['ngram'].unique()
         if self.debug is True:
             print(f"Got {len(authors)} authors, {len(pubs)} papers and {len(ngrams)} unique ngrams.\n\tBuilding node map...")
         for authorval in authors:
