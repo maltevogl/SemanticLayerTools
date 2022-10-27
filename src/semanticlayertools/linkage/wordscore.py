@@ -588,8 +588,7 @@ class LinksOverTime():
             scores = [x for x in os.listdir(scorePath) if x.endswith('_surprise.tsv')]
         ngrams = [pd.read_csv(
             scorePath + score,
-            sep='\t',
-            header=None
+            sep='\t'
         ) for score in scores]
         ngramdataframe = pd.concat(ngrams)
         ngramdataframe = ngramdataframe[ngramdataframe['score'] > scoreLimit]
