@@ -592,7 +592,7 @@ class LinksOverTime():
             header=None
         ) for score in scores]
         ngramdataframe = pd.concat(ngrams)
-        ngramdataframe = ngramdataframe[ngramdataframe[2] > scoreLimit]
+        ngramdataframe = ngramdataframe[ngramdataframe['score'] > scoreLimit]
 
         authorList = [
             x for y in [
