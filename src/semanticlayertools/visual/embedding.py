@@ -1,14 +1,11 @@
 import pandas as pd
-import spacy
 import time
 
-from tqdm import tqdm 
+from tqdm import tqdm
 
 from sentence_transformers import SentenceTransformer
-import torch
 import umap
 
-import seaborn as sns
 from langdetect import detect
 
 import textacy
@@ -17,10 +14,9 @@ import textacy.tm
 from ..cleaning.text import htmlTags
 
 
-
 def createTopicEmbedding(
-    dataframePath: str, year:str, textColumn:str = 'title', idColumn:str = "nodeID", yearColumn:str = 'year', targetLanguage:str = "en",
-    device:str = "cuda", nNei:int = 20, nComp:int = 2, metric:str="cosine", useStopList = False, denseMap:bool = False, debug:bool=True
+    dataframePath: str, year: str, textColumn: str = 'title', idColumn: str = "nodeID", yearColumn: str = 'year', targetLanguage: str = "en",
+    device: str = "cuda", nNei: int = 20, nComp: int = 2, metric: str = "cosine", useStopList: bool = False, denseMap: bool = False, debug: bool = True
 ):
     starttime = time.time()
     model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
@@ -60,8 +56,8 @@ def createTopicEmbedding(
     time3 = time.time()
     if debug is True:
         print(f"Done mapping to 2D in {time3-time2} sec.")
-    basedata.insert(0, f'x', embedded_2D[:, 0])
-    basedata.insert(0, f'y', embedded_2D[:, 1])
+    basedata.insert(0, 'x', embedded_2D[:, 0])
+    basedata.insert(0, 'y', embedded_2D[:, 1])
 
     records = []
     for idx, row in tqdm(basedata.iterrows()):
@@ -72,9 +68,9 @@ def createTopicEmbedding(
     if debug is True:
         print(f"Done building corpus in {time4-time3} sec.")
     if isinstance(useStopList, list):
-        STOPLIST=useStopList
+        STOPLIST = useStopList
     else:
-        STOPLIST= []
+        STOPLIST = []
 
     vectorizer = textacy.representations.vectorizers.Vectorizer(
         tf_type="linear",
@@ -101,18 +97,14 @@ def createTopicEmbedding(
         vectorizer.id_to_term, top_n=20
     ):
         topics[str(topic_idx)] = " ".join(top_terms)
-    
-    topTopic = [(x[0],x[1][0]) for x in topicmodel.top_doc_topics(topicmodel.get_doc_topic_matrix(doc_term_matrix),top_n=1)]
+  
+    topTopic = [(x[0], x[1][0]) for x in topicmodel.top_doc_topics(topicmodel.get_doc_topic_matrix(doc_term_matrix), top_n=1)]
 
     dfTopic = pd.DataFrame(topTopic)
-    basedata.insert(3,'topic', dfTopic[1].values)
-    sizeDict = {key:0.5 + 100/val for key, val in basedata.topic.value_counts().to_dict().items()}
+    basedata.insert(3, 'topic', dfTopic[1].values)
+    sizeDict = {key: 0.5 + 100 / val for key, val in basedata.topic.value_counts().to_dict().items()}
     sizes = basedata.topic.apply(lambda x: sizeDict[x])
-    basedata.insert(4,'sizes', sizes)
-    time6 = time.time()
+    basedata.insert(4, 'sizes', sizes)
     if debug is True:
         print(f"Done in {time5-starttime} sec total.")
-    return topics, basedata
-
-
-    
+    return topics, basedata  

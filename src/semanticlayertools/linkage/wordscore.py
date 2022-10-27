@@ -667,20 +667,19 @@ class LinksOverTime():
             scorePath,
             sep='\t'
         )
-        # Join results from tfidf and scoring
-        # FIXME: This is a first approach to bring scores and tfidf together by just multiplying.
-        jscore = ngramdataframe['tfidf'] * ngramdataframe['score']
-        ngramdataframe.insert(1, 'joinedscore', jscore)
+        # Use results from tfidf and scoring
+        # Step 1: Limit ngrams using the surprise values
+        ngramdataframe = ngramdataframe[ngramdataframe['score'] > scoreLimit]
+
         if normalize is True:
-            maxval = ngramdataframe["joinedscore"].max()
-            normVal = ngramdataframe["joinedscore"] / maxval
-            ngramdataframe['joinedscore'] = normVal
-        ngramdataframe = ngramdataframe[ngramdataframe['joinedscore'] > scoreLimit]
+            maxval = ngramdataframe["tfidf"].max()
+            normVal = ngramdataframe["tfidf"] / maxval
+            ngramdataframe["tfidf"] = normVal
         # Sets the default value for person to person and person to publication edges
         if coauthorValue == 0.0:
-            coauthorValue = ngramdataframe['joinedscore'].median()
+            coauthorValue = ngramdataframe["tfidf"].median()
         if authorValue == 0.0:
-            authorValue = ngramdataframe['joinedscore'].median()
+            authorValue = ngramdataframe["tfidf"].median()
 
         authorList = [
             x for y in [
@@ -731,7 +730,7 @@ class LinksOverTime():
                 for _, ngramrow in ngramsList.iterrows():
                     try:
                         ngramNr = self.nodeMap[ngramrow['ngram']]
-                        weight = ngramrow['joinedscore']
+                        weight = ngramrow["tfidf"]
                         # TODO: Setting precision for weight could be a problem for other datasets.
                         file.write(
                             f'2 {paperNr} 3 {ngramNr} {weight:.3f}\n'
