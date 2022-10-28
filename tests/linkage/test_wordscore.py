@@ -34,8 +34,7 @@ class TestCalculateScores(unittest.TestCase):
 
     def setUp(self):
         self.scoreinit = CalculateScores(
-            df, tokenColumn='tokens', pubIDColumn='nodeID',
-            yearColumn="year"
+            df, tokenColumn='tokens', pubIDColumn='nodeID', yearColumn="year"
         )
         self.tfidfOut, self.scoreOut, _ = self.scoreinit.run(tokenMinCount=1)
 

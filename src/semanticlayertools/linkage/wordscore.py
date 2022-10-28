@@ -398,29 +398,30 @@ class CalculateScores():
                 )
         return self.ngramDocTfidf
 
-    def getTermPatterns(self, year, dataframe):
+    def getTermPatterns(self, year, dataframe, specialChar="#"):
         """Create dictionaries of occuring ngrams."""
         self.counts[year] = {}
         self.outputDict[year] = {}
         self.allNGrams = {}
         for _, row in tqdm(dataframe.iterrows(), leave=False):
             self.outputDict[year].update(
-                {row[self.pubIDCol]: [tuple(x) for x in row[self.tokenColumn]]}
+                {row[self.pubIDCol]: [x for x in row[self.tokenColumn]]}
             )
             for elem in row[self.tokenColumn]:
+                lenElem = len(elem.split(specialChar))
                 try:
-                    val = self.allNGrams[len(elem)]
+                    val = self.allNGrams[lenElem]
                 except KeyError:
                     val = []
                 val.append(elem)
-                self.allNGrams.update({len(elem): val})
+                self.allNGrams.update({lenElem: val})
         for key, value in self.allNGrams.items():
-            self.counts[year][key] = dict(Counter([tuple(x) for x in value]))
+            self.counts[year][key] = dict(Counter([x for x in value]))
 
-    def getScore(self, target):
+    def getScore(self, target, specialChar="#"):
         """Calculate ngram score."""
         valueList = []
-        for _, subgram in enumerate(target):
+        for _, subgram in enumerate(target.split(specialChar)):
             contains = [x for x in self.counts[self.currentyear][2].keys() if subgram in x]
             rvalue = len(set(x for x in contains if x[0] == subgram))
             lvalue = len(set(x for x in contains if x[1] == subgram))
