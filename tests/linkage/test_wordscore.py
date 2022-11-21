@@ -39,5 +39,5 @@ class TestCalculateScores(unittest.TestCase):
         self.tfidfOut, self.scoreOut, _ = self.scoreinit.run(tokenMinCount=1)
 
     def test_scoring(self):
-        scoreVal = self.scoreOut['1952'][('remark', 'on', 'the', 'composition')]
+        scoreVal = self.scoreOut['1952']['remark#on#the#composition']
         assert 2.0 < scoreVal < 3.0
