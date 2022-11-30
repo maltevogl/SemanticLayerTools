@@ -5,7 +5,7 @@ import pandas as pd
 
 outPath = tempfile.TemporaryDirectory().name
 
-from semanticlayertools.linkage.cocitation import Cocitations
+from semanticlayertools.linkage.citation import Cocitations
 
 
 basePath = os.path.dirname(os.path.abspath(__file__ + "/../"))

@@ -3,7 +3,7 @@ import time
 import os
 import multiprocessing
 
-from ..linkage.cocitation import Cocitations
+from ..linkage.citation import Cocitations
 from ..clustering.leiden import TimeCluster
 from ..clustering.reports import ClusterReports
 

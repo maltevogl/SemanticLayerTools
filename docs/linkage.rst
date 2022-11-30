@@ -7,8 +7,8 @@ Link papers by Ngram scoring
    :members:
    :undoc-members:
 
-Generate network of cocitations
-*******************************
-.. automodule:: semanticlayertools.linkage.cocitation
+Generate network of citations
+*****************************
+.. automodule:: semanticlayertools.linkage.citation
   :members:
   :undoc-members:
