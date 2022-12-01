@@ -54,7 +54,7 @@ class Couplings():
         for elem in it:
             result = result[1:] + (elem,)
             yield result
-   
+  
     def _generateSliceData(self, sl):
         """Generate dataframe for given timeslice."""
         yearFiles = [
@@ -94,7 +94,7 @@ class Couplings():
                     f"{idx}:\n\t{elem[1]} nodes ({elem[2]:.3f}% of full graph)\n\t{len(gcompTemp.es)} edges ({len(gcompTemp.es)*100/len(graph.es):.3f}% of full graph)\n\n"
                 )
         return
-                
+               
     def getBibliometricCoupling(self):
         """Calculate bibliometric coupling."""
         slices = self._window(
@@ -103,8 +103,9 @@ class Couplings():
         overallStarttime = time.time()
         for sl in list(slices):
             yearname = sl[-1]
-            if os.path.isfile(f'{self.outpath}bibcoup_{yearname}.ncol'):
-                raise IOError(f"Output file at {self.outpath}bibcoup_{yearname}.ncol exists. Please move or delete.")
+            outfile = os.path.join(f'{self.outpath}', f'bibcoup_{yearname}.ncol')
+            if os.path.isfile(outfile):
+                raise IOError(f"Output file at {outfile} exists. Please move or delete.")
             if self.debug is True:
                 print(f'Working on year slice {yearname}.')
 
@@ -115,7 +116,7 @@ class Couplings():
                 print(f"\tWill have to calculate {comLen} combinations for {dfDataRef.shape[0]} entries with references ({dfSlice.shape[0]} entries in total).\n\tEstimated runtime {((comLen)/1838000)/3600:.2f} hours.")
 
             starttime = time.time()
-            with open(f'{self.outpath}bibcoup_{yearname}.ncol', 'w+') as outfile:
+            with open(outfile, 'w+') as outfile:
                 for tup in tqdm(combinations(targetSet, 2), leave=False):
                     overlap = tup[0][1].intersection(tup[1][1])
                     if overlap:
@@ -129,7 +130,7 @@ class Couplings():
                 weights=True,
                 directed=False
             )
-            tempG.vs['id'] = tempG.vs['name'] 
+            tempG.vs['id'] = tempG.vs['name']
             self._writeGraphMetadata("bibcoup", yearname, tempG)
             print(f"Done in {(time.time()-starttime)/3600:.2f} hours.")
         print(f"Finished all slices in {(time.time()-overallStarttime)/3600:.2f} hours.")
