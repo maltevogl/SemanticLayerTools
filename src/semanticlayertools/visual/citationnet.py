@@ -75,9 +75,9 @@ class GenerateTree:
     def _editDF(self, inputdf, dftype='cite_l1', level2List=None):
         """Return reformated dataframe. """
         retCols = ['source', 'target', 'doi', 'year', 'title', 'times_cited', 'forcodes', 'level', 'is_input']
-        formatedFOR = inputdf.category_for.apply(lambda row: self._formatFOR(row))
+        formatedFOR = inputdf.category_for_2008.apply(lambda row: self._formatFOR(row))
         inputdf.insert(0, 'forcodes', formatedFOR)
-        inputdf.drop(['category_for'], axis=1, inplace=True)
+        inputdf.drop(['category_for_2008'], axis=1, inplace=True)
         inputdf.rename(columns={'id': 'source'}, inplace=True)
         if dftype in ['ref_l1', 'cite_l2', 'ref_l2']:
             outdf = inputdf.explode('reference_ids')
@@ -104,14 +104,14 @@ class GenerateTree:
         retCols = ['source', 'doi', 'year', 'title', 'times_cited', 'forcodes', 'level', 'is_input']
         dfList = []
         if len(idlist) > 512:
-            for partlist in tqdm(np.array_split(idlist, round(len(idlist)/400))):
+            for partlist in tqdm(np.array_split(idlist, round(len(idlist) / 400))):
                 res = self.dsl.query_iterative(
                     f"""search
                           publications
                         where
                           id in {json.dumps(list(partlist))}
                         return
-                          publications[id+doi+times_cited+category_for+title+year]
+                          publications[id+doi+times_cited+category_for_2008+title+year]
                     """,
                     verbose=self._verbose
                 )
@@ -124,14 +124,14 @@ class GenerateTree:
                     where
                       id in {json.dumps(list(idlist))}
                     return
-                      publications[id+doi+times_cited+category_for+title+year]
+                      publications[id+doi+times_cited+category_for_2008+title+year]
                 """,
                 verbose=self._verbose
             )
             retDF = res.as_dataframe()
-        formatedFOR = retDF.category_for.apply(lambda row: self._formatFOR(row))
+        formatedFOR = retDF.category_for_2008.apply(lambda row: self._formatFOR(row))
         retDF.insert(0, 'forcodes', formatedFOR)
-        retDF.drop(['category_for'], axis=1, inplace=True)
+        retDF.drop(['category_for_2008'], axis=1, inplace=True)
         retDF.rename(columns={'id': 'source'}, inplace=True)
         retDF.insert(0, 'level', 'ref_l3')
         retDF.insert(0, 'is_input', False)
@@ -151,7 +151,7 @@ class GenerateTree:
                 where
                   doi = "{startDoi}"
                 return
-                  publications[id+authors+doi+times_cited+category_for+title+year+reference_ids]
+                  publications[id+authors+doi+times_cited+category_for_2008+title+year+reference_ids]
             """,
             verbose=self._verbose
         )
@@ -182,7 +182,7 @@ class GenerateTree:
                 where
                   reference_ids = "{self.pubids}"
                 return
-                  publications[id+doi+times_cited+category_for+title+year+reference_ids]
+                  publications[id+doi+times_cited+category_for_2008+title+year+reference_ids]
             """,
             verbose=self._verbose)
         self.dataframeList.append(
@@ -195,7 +195,7 @@ class GenerateTree:
                 where
                   reference_ids in {json.dumps(cit1SrcList)}
                 return
-                  publications[id+doi+times_cited+category_for+title+year+reference_ids]""",
+                  publications[id+doi+times_cited+category_for_2008+title+year+reference_ids]""",
             verbose=self._verbose
         )
         self.dataframeList.append(
@@ -207,7 +207,7 @@ class GenerateTree:
                 where
                   id in {json.dumps(ref1trgtList)}
                 return
-                  publications[id+doi+times_cited+category_for+title+year+reference_ids]""",
+                  publications[id+doi+times_cited+category_for_2008+title+year+reference_ids]""",
             verbose=self._verbose
         )
         self.dataframeList.append(
@@ -239,16 +239,15 @@ class GenerateTree:
             outformat['nodes'].append(
                 {
                     'id': row['source'],
-                    'attributes':
-                        {
-                            "title": row['title'],
-                            "doi": row["doi"],
-                            "nodeyear": row["year"],
-                            "ref-by-count": row["times_cited"],
-                            "is_input_DOI": row['is_input'],
-                            "category_for": row["forcodes"],
-                            'level': row['level']
-                        }
+                    'attributes': {
+                        "title": row['title'],
+                        "doi": row["doi"],
+                        "nodeyear": row["year"],
+                        "ref-by-count": row["times_cited"],
+                        "is_input_DOI": row['is_input'],
+                        "category_for": row["forcodes"],
+                        'level': row['level']
+                    }
                 }
             )
         for idx, row in dflinks.fillna('').iterrows():
@@ -257,11 +256,10 @@ class GenerateTree:
                     {
                         'source': row['source'],
                         'target': row['target'],
-                        'attributes':
-                            {
-                                'year': row['year'],
-                                'level': row['level']
-                            }
+                        'attributes': {
+                            'year': row['year'],
+                            'level': row['level']
+                        }
                     }
                 )
         doiname = self.startDoi
