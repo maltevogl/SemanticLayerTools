@@ -1,8 +1,12 @@
+<img src="https://img.shields.io/badge/DHCodeReview-passed-brightgreen" alt="DHCodeReview" style="float: left; margin-right: 10px;" />[Review](https://github.com/DHCodeReview/DHCodeReview/issues/1)
+
 ## SemanticLayerTools
 
 Collects tools to create semantic layers in the socio-epistemic networks framework. Source material can be any structured corpus with metadata of authors, time, and at least one text column.
 
 Documentation is available on [ReadTheDocs](https://semanticlayertools.readthedocs.io/).
+
+Part of the code was reviewed by [Itay Zandbank](https://github.com/zmbq), thank you. 
 
 ## Installation
 
